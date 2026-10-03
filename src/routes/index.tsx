@@ -193,7 +193,7 @@ function DepVestApp() {
         onProfile={() => setProfileOpen(true)}
         onNotice={showNotice}
       />
-      <main className="mx-auto w-full max-w-[1440px] px-4 pb-28 pt-6 sm:px-6 md:pt-8 lg:px-8 lg:pb-20">
+      <main className="mx-auto w-full max-w-[1440px] px-4 pb-32 pt-6 sm:px-6 md:pt-8 lg:px-8 lg:pb-20">
         {view === "Portfolio" && <Portfolio onAction={setAction} onNotice={showNotice} onView={go} />}
         {view === "Invest" && <Invest onAction={setAction} />}
         {view === "Active Earn" && <ActiveEarn onNotice={showNotice} />}
@@ -202,7 +202,7 @@ function DepVestApp() {
         {view === "How It Works" && <HowItWorks onStart={() => go("Invest")} />}
         {view === "Q&A" && <FAQ onContact={() => showNotice("Support chat opened")} />}
       </main>
-      <MobileNav view={view} onView={go} onMore={() => setMoreOpen(true)} />
+      <MobileNav view={view} onView={go} onMore={() => setMoreOpen(true)} onAction={() => setAction("Deposit")} />
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent side="bottom" className="rounded-t-[18px] border-border bg-popover">
           <SheetHeader className="text-left"><SheetTitle>More</SheetTitle><SheetDescription>Learn, share, and get help.</SheetDescription></SheetHeader>
@@ -218,7 +218,7 @@ function DepVestApp() {
         </SheetContent>
       </Sheet>
       {notice && (
-        <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-md border border-success/25 bg-popover px-4 py-3 text-sm shadow-panel lg:bottom-5">
+        <div className="fixed bottom-28 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-md border border-success/25 bg-popover px-4 py-3 text-sm shadow-panel lg:bottom-5">
           <Check className="size-4 shrink-0 text-success" /> <span className="truncate">{notice}</span>
         </div>
       )}
@@ -277,18 +277,37 @@ function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNo
   );
 }
 
-function MobileNav({ view, onView, onMore }: { view: View; onView: (v: View) => void; onMore: () => void }) {
+function MobileNav({ view, onView, onMore, onAction }: { view: View; onView: (v: View) => void; onMore: () => void; onAction: () => void }) {
   const moreActive = moreItems.some((m) => m.label === view);
-  return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden" aria-label="Mobile navigation">
-      {navItems.map(({ label, short, icon: Icon }) => (
-        <button key={label} onClick={() => onView(label)} className={cn("flex flex-col items-center gap-1 py-2.5 text-[10px]", view === label ? "text-success" : "text-muted-foreground")}>
-          <Icon className="size-5" />{short}
-        </button>
-      ))}
-      <button onClick={onMore} className={cn("flex flex-col items-center gap-1 py-2.5 text-[10px]", moreActive ? "text-success" : "text-muted-foreground")}>
-        <Menu className="size-5" />More
+  const Tab = ({ item }: { item: (typeof navItems)[number] }) => {
+    const active = view === item.label;
+    const Icon = item.icon;
+    return (
+      <button onClick={() => onView(item.label)} aria-label={item.label} aria-current={active ? "page" : undefined} className={cn("group relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors", active ? "text-success" : "text-muted-foreground hover:text-foreground")}>
+        <Icon className={cn("size-5 transition-transform", active && "-translate-y-0.5")} />
+        <span>{item.short}</span>
+        <span className={cn("absolute bottom-1.5 h-1 w-1 rounded-full bg-success transition-opacity", active ? "opacity-100" : "opacity-0")} />
       </button>
+    );
+  };
+  return (
+    <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 mx-auto w-[calc(100%-1.5rem)] max-w-md lg:hidden">
+      <div className="relative h-[68px] drop-shadow-[0_12px_30px_rgba(0,0,0,0.55)]">
+        <svg viewBox="0 0 400 68" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+          <path d="M24 0 H148 C162 0 166 6 170 14 C178 32 188 40 200 40 C212 40 222 32 230 14 C234 6 238 0 252 0 H376 A24 24 0 0 1 400 24 V44 A24 24 0 0 1 376 68 H24 A24 24 0 0 1 0 44 V24 A24 24 0 0 1 24 0 Z" className="fill-card stroke-border" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <div className="relative flex h-full items-stretch px-1">
+          <Tab item={navItems[0]} />
+          <Tab item={navItems[1]} />
+          <div className="w-[76px] shrink-0" />
+          <Tab item={navItems[2]} />
+          <Tab item={navItems[3]} />
+        </div>
+        <button onClick={onAction} aria-label="Quick deposit" className="absolute left-1/2 top-0 grid size-14 -translate-x-1/2 -translate-y-[45%] place-items-center rounded-full bg-success text-success-foreground shadow-glow ring-4 ring-background transition-transform active:scale-95 hover:scale-105">
+          <Plus className="size-6" />
+        </button>
+      </div>
+      <button onClick={onMore} className={cn("sr-only", moreActive && "text-success")}>More</button>
     </nav>
   );
 }
