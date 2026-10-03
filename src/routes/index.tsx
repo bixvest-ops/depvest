@@ -278,7 +278,6 @@ function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNo
 }
 
 function MobileNav({ view, onView, onMore, onAction }: { view: View; onView: (v: View) => void; onMore: () => void; onAction: () => void }) {
-  const moreActive = moreItems.some((m) => m.label === view);
   const Tab = ({ item }: { item: (typeof navItems)[number] }) => {
     const active = view === item.label;
     const Icon = item.icon;
@@ -307,7 +306,6 @@ function MobileNav({ view, onView, onMore, onAction }: { view: View; onView: (v:
           <Plus className="size-6" />
         </button>
       </div>
-      <button onClick={onMore} className={cn("sr-only", moreActive && "text-success")}>More</button>
     </nav>
   );
 }
