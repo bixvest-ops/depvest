@@ -291,7 +291,7 @@ export function InviteFriends({ onNotice }: { onNotice: (m: string) => void }) {
   return (
     <section>
       <Intro eyebrow="Invite Friends" title="Grow together, earn together." copy="Share your link. When friends deposit, you earn a share of their daily yield — they get a welcome boost too." />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat icon={<Gift />} label="Rewards earned" value="$142.50" />
         <Stat icon={<Users />} label="Friends invited" value="6" />
         <Stat icon={<Check />} label="Active depositors" value="4" />
