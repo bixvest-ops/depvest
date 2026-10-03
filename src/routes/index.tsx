@@ -298,7 +298,7 @@ function NavButton({ item, active, onClick }: { item: (typeof navItems)[number];
   return <button onClick={onClick} className={cn("flex h-8 items-center gap-2 rounded-full px-4 text-xs transition-colors", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}><Icon className="size-3.5" />{item.label}</button>;
 }
 
-function Portfolio({ onAction, onNotice }: { onAction: (value: string) => void; onNotice: (value: string) => void }) {
+function Portfolio({ onAction, onNotice, onView }: { onAction: (value: string) => void; onNotice: (value: string) => void; onView: (v: View) => void }) {
   return (
     <>
       <PortfolioSummary onAction={onAction} onNotice={onNotice} />
@@ -307,7 +307,7 @@ function Portfolio({ onAction, onNotice }: { onAction: (value: string) => void; 
           <SectionLabel title="Asset Vaults" right="4 active · $ 12,450.80 TVL" />
           <div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={vault} onAction={onAction} onNotice={onNotice} />)}</div>
           <div className="mt-4 flex items-center gap-3 rounded-md border border-dashed border-border bg-card/40 p-4 text-xs text-muted-foreground">
-            <Sparkles className="size-4" /><span>Add a new vault? Explore private credit & DePIN coming soon.</span>
+            <Sparkles className="size-4 shrink-0" /><span className="min-w-0">Add a new vault? Explore private credit & DePIN coming soon.</span>
             <Button variant="outline" size="sm" className="ml-auto" onClick={() => onNotice("You joined the early access list")}>Join waitlist</Button>
           </div>
         </section>
@@ -342,7 +342,7 @@ function PortfolioSummary({ onAction, onNotice }: { onAction: (value: string) =>
             </div>
           </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto lg:flex-col">
+        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
           <Button className="shrink-0 justify-center rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction("Deposit funds")}><Plus />Deposit</Button>
           <Button variant="outline" className="shrink-0 justify-center rounded-full" onClick={() => onAction("Withdraw funds")}><ArrowDownToLine />Withdraw</Button>
           <Button variant="outline" className="shrink-0 justify-center rounded-full" onClick={() => onNotice("Portfolio rebalanced to your target allocation")}><RefreshCw />Rebalance</Button>
@@ -369,7 +369,7 @@ function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[numbe
       </div>
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
         <div><Label>Balance</Label><div className="mt-1 flex items-baseline gap-2"><strong className="font-mono text-[22px]">{vault.balance}</strong><span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[9px] text-muted-foreground">{vault.allocation}</span></div><p className="mt-2 text-[10px] text-muted-foreground">◉ {vault.terms}</p></div>
-        <div className="ml-auto flex gap-2"><Button variant="outline" size="sm" className="rounded-full" onClick={() => onNotice(`${vault.name} rebalance preview opened`)}>Rebalance <ChevronRight /></Button><Button size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction(`${vault.action}: ${vault.name}`)}>{vault.action} <ArrowUpRight /></Button></div>
+        <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex"><Button variant="outline" size="sm" className="rounded-full" onClick={() => onNotice(`${vault.name} rebalance preview opened`)}>Rebalance <ChevronRight /></Button><Button size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction(`${vault.action}: ${vault.name}`)}><span className="truncate">{vault.action}</span> <ArrowUpRight /></Button></div>
       </div>
       <div className="mt-4 h-0.5 overflow-hidden rounded-full bg-secondary"><span className={cn("block h-full", `bar-${vault.accent}`)} style={{ width: vault.allocation }} /></div>
     </article>
@@ -391,7 +391,7 @@ function Performance() {
         </svg>
       </div>
       <div className="flex justify-between font-mono text-[9px] text-muted-foreground"><span>Oct 24</span><span className="flex gap-4"><i className="text-success">— Actual</i><i>— Projected</i></span><span>Now</span></div>
-      <div className="mt-5 grid grid-cols-3 gap-2"><Metric label="Total Gain" value="+$318.40" note="+2.62% this month" success /><Metric label="APY Weighted" value="7.31%" note="Blended yield" /><Metric label="Projected 1Y" value="$14,420.00" note="+15.8%" success /></div>
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1"><Metric label="Total Gain" value="+$318.40" note="+2.62% this month" success /><Metric label="APY Weighted" value="7.31%" note="Blended yield" /><Metric label="Projected 1Y" value="$14,420.00" note="+15.8%" success /></div>
       <div className="my-6 border-t border-border" />
       <SectionLabel title="Recent Activity Feed" right="View all" />
       <div className="space-y-2">{activity.map((item) => { const Icon = item.icon; return <div key={item.title} className="flex items-center gap-3 rounded-md border border-border bg-background/30 p-3"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><Icon className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-medium">{item.title} <span className="font-mono text-success">{item.value}</span></p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><Check className="size-3 text-muted-foreground" /></div>; })}</div>
@@ -408,7 +408,7 @@ function Invest({ onAction }: { onAction: (value: string) => void }) {
 
 function ActiveEarn({ onNotice }: { onNotice: (value: string) => void }) {
   const tasks = [{ title: "Validate product labels", reward: "$0.38", time: "~3 min", icon: Bot }, { title: "Review AI summary", reward: "$0.45", time: "~4 min", icon: Sparkles }, { title: "Classify satellite tiles", reward: "$0.29", time: "~2 min", icon: Layers3 }];
-  return <section><PageIntro eyebrow="Active Earn" title="Earn in the moments between." copy="Complete verified data tasks and receive direct micro-payouts to your wallet." /><div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div className="space-y-3">{tasks.map(({ title, reward, time, icon: Icon }) => <article key={title} className="flex items-center gap-4 rounded-[14px] border border-border bg-card p-5"><span className="vault-icon accent-task"><Icon className="size-5" /></span><div className="flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-[10px] text-muted-foreground">Open queue · {time}</p></div><strong className="font-mono text-success">{reward}</strong><Button size="sm" className="rounded-full" onClick={() => onNotice(`${title} started`)}>Start <ChevronRight /></Button></article>)}</div><div className="rounded-[14px] border border-border bg-card p-6"><Label>Today</Label><p className="mt-3 font-mono text-4xl">$6.82</p><p className="mt-2 text-xs text-success">18 tasks completed</p><div className="mt-8 space-y-3"><ProgressRow label="Daily goal" value="68%" /><ProgressRow label="Accuracy" value="98%" /><ProgressRow label="Approval rate" value="100%" /></div></div></div></section>;
+  return <section><PageIntro eyebrow="Active Earn" title="Earn in the moments between." copy="Complete verified data tasks and receive direct micro-payouts to your wallet." /><div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div className="space-y-3">{tasks.map(({ title, reward, time, icon: Icon }) => <article key={title} className="flex flex-wrap items-center gap-3 rounded-[14px] border border-border bg-card p-4 sm:flex-nowrap sm:gap-4 sm:p-5"><span className="vault-icon accent-task shrink-0"><Icon className="size-5" /></span><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-[10px] text-muted-foreground">Open queue · {time}</p></div><strong className="font-mono text-success">{reward}</strong><Button size="sm" className="rounded-full" onClick={() => onNotice(`${title} started`)}>Start <ChevronRight /></Button></article>)}</div><div className="rounded-[14px] border border-border bg-card p-6"><Label>Today</Label><p className="mt-3 font-mono text-4xl">$6.82</p><p className="mt-2 text-xs text-success">18 tasks completed</p><div className="mt-8 space-y-3"><ProgressRow label="Daily goal" value="68%" /><ProgressRow label="Accuracy" value="98%" /><ProgressRow label="Approval rate" value="100%" /></div></div></div></section>;
 }
 
 function WalletLedger({ onAction }: { onAction: (value: string) => void }) {
