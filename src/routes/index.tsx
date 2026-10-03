@@ -13,21 +13,37 @@ import {
   Coins,
   Cpu,
   Database,
+  HelpCircle,
   Landmark,
   Layers3,
   LockKeyhole,
+  Menu,
   Plus,
   RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
+  UserPlus,
   WalletCards,
   X,
   Zap,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import {
+  ConnectWalletDialog,
+  FAQ,
+  HowItWorks,
+  InviteFriends,
+  NotificationsPopover,
+  ProfileSheet,
+  ReceiptDialog,
+  WalletChip,
+  WALLET_ADDRESS,
+  type Receipt,
+} from "@/components/depvest/extras";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -50,14 +66,20 @@ export const Route = createFileRoute("/")({
   component: DepVestApp,
 });
 
-type View = "Portfolio" | "Invest" | "Active Earn" | "Wallet & Ledger";
+type View = "Portfolio" | "Invest" | "Active Earn" | "Wallet & Ledger" | "Invite Friends" | "How It Works" | "Q&A";
 type Accent = "cash" | "cloud" | "digital" | "task";
 
-const navItems: Array<{ label: View; icon: typeof BarChart3; mobile: string }> = [
-  { label: "Portfolio", mobile: "Portfolio (Overview)", icon: BarChart3 },
-  { label: "Invest", mobile: "Invest (Vaults)", icon: Coins },
-  { label: "Active Earn", mobile: "Active Earn", icon: Zap },
-  { label: "Wallet & Ledger", mobile: "Wallet & Ledger", icon: WalletCards },
+const navItems: Array<{ label: View; icon: typeof BarChart3; short: string }> = [
+  { label: "Portfolio", short: "Portfolio", icon: BarChart3 },
+  { label: "Invest", short: "Invest", icon: Coins },
+  { label: "Active Earn", short: "Earn", icon: Zap },
+  { label: "Wallet & Ledger", short: "Wallet", icon: WalletCards },
+];
+
+const moreItems: Array<{ label: View; icon: typeof BarChart3; copy: string }> = [
+  { label: "Invite Friends", icon: UserPlus, copy: "Earn up to 15% of friends' yield" },
+  { label: "How It Works", icon: Sparkles, copy: "Four steps to a diversified portfolio" },
+  { label: "Q&A", icon: HelpCircle, copy: "Answers about yields, safety, and fees" },
 ];
 
 const vaults: Array<{
@@ -142,57 +164,132 @@ function DepVestApp() {
   const [view, setView] = useState<View>("Portfolio");
   const [notice, setNotice] = useState("");
   const [action, setAction] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<string | null>(null);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [receipt, setReceipt] = useState<Receipt>(null);
 
   const showNotice = (message: string) => {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 2600);
   };
+  const go = (v: View) => {
+    setView(v);
+    setMoreOpen(false);
+    setProfileOpen(false);
+    window.scrollTo({ top: 0 });
+  };
+  const disconnect = () => { setWallet(null); setProfileOpen(false); showNotice("Wallet disconnected"); };
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/30">
-      <Header view={view} onView={setView} />
-      <main className="mx-auto w-full max-w-[1440px] px-4 pb-20 pt-8 sm:px-6 lg:px-8">
-        {view === "Portfolio" && <Portfolio onAction={setAction} onNotice={showNotice} />}
+    <div className="min-h-screen overflow-x-hidden bg-background text-foreground selection:bg-primary/30">
+      <Header
+        view={view}
+        onView={go}
+        wallet={wallet}
+        onConnect={() => setConnectOpen(true)}
+        onDisconnect={disconnect}
+        onProfile={() => setProfileOpen(true)}
+        onNotice={showNotice}
+      />
+      <main className="mx-auto w-full max-w-[1440px] px-4 pb-28 pt-6 sm:px-6 md:pt-8 lg:px-8 lg:pb-20">
+        {view === "Portfolio" && <Portfolio onAction={setAction} onNotice={showNotice} onView={go} />}
         {view === "Invest" && <Invest onAction={setAction} />}
         {view === "Active Earn" && <ActiveEarn onNotice={showNotice} />}
-        {view === "Wallet & Ledger" && <WalletLedger onAction={setAction} />}
+        {view === "Wallet & Ledger" && <WalletLedger onAction={setAction} onReceipt={setReceipt} wallet={wallet} onConnect={() => setConnectOpen(true)} />}
+        {view === "Invite Friends" && <InviteFriends onNotice={showNotice} />}
+        {view === "How It Works" && <HowItWorks onStart={() => go("Invest")} />}
+        {view === "Q&A" && <FAQ onContact={() => showNotice("Support chat opened")} />}
       </main>
+      <MobileNav view={view} onView={go} onMore={() => setMoreOpen(true)} />
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent side="bottom" className="rounded-t-[18px] border-border bg-popover">
+          <SheetHeader className="text-left"><SheetTitle>More</SheetTitle><SheetDescription>Learn, share, and get help.</SheetDescription></SheetHeader>
+          <div className="mt-4 grid gap-2 pb-4">
+            {moreItems.map(({ label, icon: Icon, copy }) => (
+              <button key={label} onClick={() => go(label)} className={cn("flex items-center gap-3 rounded-md border p-3 text-left", view === label ? "border-success/40 bg-success/10" : "border-border bg-background/40")}>
+                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-secondary"><Icon className="size-4" /></span>
+                <span className="min-w-0"><span className="block text-sm font-medium">{label}</span><span className="block truncate text-[11px] text-muted-foreground">{copy}</span></span>
+                <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
       {notice && (
-        <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-md border border-success/25 bg-popover px-4 py-3 text-sm shadow-panel">
-          <Check className="size-4 text-success" /> {notice}
+        <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-md border border-success/25 bg-popover px-4 py-3 text-sm shadow-panel lg:bottom-5">
+          <Check className="size-4 shrink-0 text-success" /> <span className="truncate">{notice}</span>
         </div>
       )}
       {action && <ActionModal title={action} onClose={() => setAction(null)} onDone={(msg) => { setAction(null); showNotice(msg); }} />}
+      <ConnectWalletDialog open={connectOpen} onOpenChange={setConnectOpen} onConnected={(w) => { setWallet(w); setConnectOpen(false); showNotice(`${w} connected`); }} />
+      <ProfileSheet
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        wallet={wallet}
+        onConnect={() => { setProfileOpen(false); setConnectOpen(true); }}
+        onDisconnect={disconnect}
+        onInvite={() => go("Invite Friends")}
+        onNotice={showNotice}
+      />
+      <ReceiptDialog receipt={receipt} onClose={() => setReceipt(null)} onNotice={showNotice} />
     </div>
   );
 }
 
-function Header({ view, onView }: { view: View; onView: (view: View) => void }) {
+function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNotice }: {
+  view: View;
+  onView: (view: View) => void;
+  wallet: string | null;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onProfile: () => void;
+  onNotice: (m: string) => void;
+}) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-5 px-4 sm:px-6 lg:px-8">
-        <button className="flex shrink-0 items-center gap-3" onClick={() => onView("Portfolio")} aria-label="Open portfolio">
-          <span className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground shadow-glow"><Layers3 className="size-5" /></span>
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:gap-5 sm:px-6 lg:px-8">
+        <button className="flex min-w-0 shrink-0 items-center gap-3" onClick={() => onView("Portfolio")} aria-label="Open portfolio">
+          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground shadow-glow"><Layers3 className="size-5" /></span>
           <span className="text-base font-semibold">DepVest</span>
-          <span className="hidden rounded border border-border px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground sm:inline">Multi-Asset Hub</span>
+          <span className="hidden rounded border border-border px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground 2xl:inline">Multi-Asset Hub</span>
         </button>
         <nav className="hidden rounded-full border border-border bg-card p-1 lg:flex" aria-label="Primary navigation">
           {navItems.map((item) => <NavButton key={item.label} item={item} active={view === item.label} onClick={() => onView(item.label)} />)}
         </nav>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="hidden items-center gap-2 rounded-full border border-border bg-card px-3 py-2 font-mono text-[10px] text-muted-foreground sm:flex"><i className="size-1.5 animate-pulse rounded-full bg-success" /> Live yields</span>
-          <Button variant="outline" size="icon" className="rounded-full border-border bg-card" aria-label="Notifications"><Bell className="size-4" /></Button>
-          <span className="grid size-9 place-items-center rounded-full border border-border bg-secondary text-xs font-semibold">AK</span>
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <div className="hidden items-center gap-1 xl:flex">
+            {moreItems.map((m) => <button key={m.label} onClick={() => onView(m.label)} className={cn("rounded-full px-3 py-2 text-xs transition-colors", view === m.label ? "text-foreground" : "text-muted-foreground hover:text-foreground")}>{m.label}</button>)}
+          </div>
+          {wallet ? (
+            <WalletChip wallet={wallet} onDisconnect={onDisconnect} onNotice={onNotice} />
+          ) : (
+            <Button onClick={onConnect} className="h-9 shrink-0 rounded-full bg-success px-3 text-primary-foreground hover:bg-success/90 sm:px-4">
+              <WalletCards /><span className="hidden sm:inline">Connect Wallet</span><span className="sm:hidden">Connect</span>
+            </Button>
+          )}
+          <NotificationsPopover />
+          <button onClick={onProfile} aria-label="Open profile" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-secondary text-xs font-semibold transition-colors hover:border-success/50">AK</button>
         </div>
       </div>
-      <nav className="flex gap-2 overflow-x-auto border-t border-border/70 px-3 py-2 lg:hidden" aria-label="Mobile navigation">
-        {navItems.map((item) => (
-          <Button key={item.label} variant={view === item.label ? "default" : "outline"} className="shrink-0 rounded-full" onClick={() => onView(item.label)}>
-            {item.mobile}
-          </Button>
-        ))}
-      </nav>
     </header>
+  );
+}
+
+function MobileNav({ view, onView, onMore }: { view: View; onView: (v: View) => void; onMore: () => void }) {
+  const moreActive = moreItems.some((m) => m.label === view);
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden" aria-label="Mobile navigation">
+      {navItems.map(({ label, short, icon: Icon }) => (
+        <button key={label} onClick={() => onView(label)} className={cn("flex flex-col items-center gap-1 py-2.5 text-[10px]", view === label ? "text-success" : "text-muted-foreground")}>
+          <Icon className="size-5" />{short}
+        </button>
+      ))}
+      <button onClick={onMore} className={cn("flex flex-col items-center gap-1 py-2.5 text-[10px]", moreActive ? "text-success" : "text-muted-foreground")}>
+        <Menu className="size-5" />More
+      </button>
+    </nav>
   );
 }
 
