@@ -185,6 +185,7 @@ function DepVestApp() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-background text-foreground selection:bg-primary/30">
       <Header
+        onMore={() => setMoreOpen(true)}
         view={view}
         onView={go}
         wallet={wallet}
@@ -238,7 +239,8 @@ function DepVestApp() {
   );
 }
 
-function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNotice }: {
+function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNotice, onMore }: {
+  onMore: () => void;
   view: View;
   onView: (view: View) => void;
   wallet: string | null;
@@ -270,6 +272,7 @@ function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNo
             </Button>
           )}
           <NotificationsPopover />
+          <button onClick={onMore} aria-label="Open menu" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-secondary transition-colors hover:border-success/50 lg:hidden"><Menu className="size-4" /></button>
           <button onClick={onProfile} aria-label="Open profile" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-secondary text-xs font-semibold transition-colors hover:border-success/50">AK</button>
         </div>
       </div>
@@ -302,7 +305,7 @@ function MobileNav({ view, onView, onMore, onAction }: { view: View; onView: (v:
           <Tab item={navItems[2]} />
           <Tab item={navItems[3]} />
         </div>
-        <button onClick={onAction} aria-label="Quick deposit" className="absolute left-1/2 top-0 grid size-14 -translate-x-1/2 -translate-y-[45%] place-items-center rounded-full bg-success text-success-foreground shadow-glow ring-4 ring-background transition-transform active:scale-95 hover:scale-105">
+        <button onClick={onAction} aria-label="Quick deposit" className="absolute left-1/2 top-0 grid size-14 -translate-x-1/2 -translate-y-[45%] place-items-center rounded-full bg-success text-background shadow-glow ring-4 ring-background transition-transform active:scale-95 hover:scale-105">
           <Plus className="size-6" />
         </button>
       </div>
