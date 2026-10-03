@@ -302,6 +302,15 @@ function Portfolio({ onAction, onNotice, onView }: { onAction: (value: string) =
   return (
     <>
       <PortfolioSummary onAction={onAction} onNotice={onNotice} />
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {moreItems.map(({ label, icon: Icon, copy }) => (
+          <button key={label} onClick={() => onView(label)} className="flex items-center gap-3 rounded-[14px] border border-border bg-card p-4 text-left transition-colors hover:border-success/40">
+            <span className="vault-icon accent-cash shrink-0"><Icon className="size-4" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{label}</span><span className="block truncate text-[11px] text-muted-foreground">{copy}</span></span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </button>
+        ))}
+      </div>
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
           <SectionLabel title="Asset Vaults" right="4 active · $ 12,450.80 TVL" />
