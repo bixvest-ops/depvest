@@ -9,3 +9,5 @@
 - [x] Connect Wallet button, wallet picker, connected address chip
 - [x] Profile drawer on avatar, notifications on bell, ledger receipts
 - [x] Invite Friends, How It Works, Q&A sections
+
+- [x] Floating curved bottom menu with center Deposit button on phones and tablets (no scrolling pill bar)
