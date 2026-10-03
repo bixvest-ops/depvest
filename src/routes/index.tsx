@@ -13,21 +13,37 @@ import {
   Coins,
   Cpu,
   Database,
+  HelpCircle,
   Landmark,
   Layers3,
   LockKeyhole,
+  Menu,
   Plus,
   RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
+  UserPlus,
   WalletCards,
   X,
   Zap,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import {
+  ConnectWalletDialog,
+  FAQ,
+  HowItWorks,
+  InviteFriends,
+  NotificationsPopover,
+  ProfileSheet,
+  ReceiptDialog,
+  WalletChip,
+  WALLET_ADDRESS,
+  type Receipt,
+} from "@/components/depvest/extras";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -50,14 +66,20 @@ export const Route = createFileRoute("/")({
   component: DepVestApp,
 });
 
-type View = "Portfolio" | "Invest" | "Active Earn" | "Wallet & Ledger";
+type View = "Portfolio" | "Invest" | "Active Earn" | "Wallet & Ledger" | "Invite Friends" | "How It Works" | "Q&A";
 type Accent = "cash" | "cloud" | "digital" | "task";
 
-const navItems: Array<{ label: View; icon: typeof BarChart3; mobile: string }> = [
-  { label: "Portfolio", mobile: "Portfolio (Overview)", icon: BarChart3 },
-  { label: "Invest", mobile: "Invest (Vaults)", icon: Coins },
-  { label: "Active Earn", mobile: "Active Earn", icon: Zap },
-  { label: "Wallet & Ledger", mobile: "Wallet & Ledger", icon: WalletCards },
+const navItems: Array<{ label: View; icon: typeof BarChart3; short: string }> = [
+  { label: "Portfolio", short: "Portfolio", icon: BarChart3 },
+  { label: "Invest", short: "Invest", icon: Coins },
+  { label: "Active Earn", short: "Earn", icon: Zap },
+  { label: "Wallet & Ledger", short: "Wallet", icon: WalletCards },
+];
+
+const moreItems: Array<{ label: View; icon: typeof BarChart3; copy: string }> = [
+  { label: "Invite Friends", icon: UserPlus, copy: "Earn up to 15% of friends' yield" },
+  { label: "How It Works", icon: Sparkles, copy: "Four steps to a diversified portfolio" },
+  { label: "Q&A", icon: HelpCircle, copy: "Answers about yields, safety, and fees" },
 ];
 
 const vaults: Array<{
@@ -142,57 +164,132 @@ function DepVestApp() {
   const [view, setView] = useState<View>("Portfolio");
   const [notice, setNotice] = useState("");
   const [action, setAction] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<string | null>(null);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [receipt, setReceipt] = useState<Receipt>(null);
 
   const showNotice = (message: string) => {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 2600);
   };
+  const go = (v: View) => {
+    setView(v);
+    setMoreOpen(false);
+    setProfileOpen(false);
+    window.scrollTo({ top: 0 });
+  };
+  const disconnect = () => { setWallet(null); setProfileOpen(false); showNotice("Wallet disconnected"); };
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/30">
-      <Header view={view} onView={setView} />
-      <main className="mx-auto w-full max-w-[1440px] px-4 pb-20 pt-8 sm:px-6 lg:px-8">
-        {view === "Portfolio" && <Portfolio onAction={setAction} onNotice={showNotice} />}
+    <div className="min-h-screen overflow-x-hidden bg-background text-foreground selection:bg-primary/30">
+      <Header
+        view={view}
+        onView={go}
+        wallet={wallet}
+        onConnect={() => setConnectOpen(true)}
+        onDisconnect={disconnect}
+        onProfile={() => setProfileOpen(true)}
+        onNotice={showNotice}
+      />
+      <main className="mx-auto w-full max-w-[1440px] px-4 pb-28 pt-6 sm:px-6 md:pt-8 lg:px-8 lg:pb-20">
+        {view === "Portfolio" && <Portfolio onAction={setAction} onNotice={showNotice} onView={go} />}
         {view === "Invest" && <Invest onAction={setAction} />}
         {view === "Active Earn" && <ActiveEarn onNotice={showNotice} />}
-        {view === "Wallet & Ledger" && <WalletLedger onAction={setAction} />}
+        {view === "Wallet & Ledger" && <WalletLedger onAction={setAction} onReceipt={setReceipt} wallet={wallet} onConnect={() => setConnectOpen(true)} />}
+        {view === "Invite Friends" && <InviteFriends onNotice={showNotice} />}
+        {view === "How It Works" && <HowItWorks onStart={() => go("Invest")} />}
+        {view === "Q&A" && <FAQ onContact={() => showNotice("Support chat opened")} />}
       </main>
+      <MobileNav view={view} onView={go} onMore={() => setMoreOpen(true)} />
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent side="bottom" className="rounded-t-[18px] border-border bg-popover">
+          <SheetHeader className="text-left"><SheetTitle>More</SheetTitle><SheetDescription>Learn, share, and get help.</SheetDescription></SheetHeader>
+          <div className="mt-4 grid gap-2 pb-4">
+            {moreItems.map(({ label, icon: Icon, copy }) => (
+              <button key={label} onClick={() => go(label)} className={cn("flex items-center gap-3 rounded-md border p-3 text-left", view === label ? "border-success/40 bg-success/10" : "border-border bg-background/40")}>
+                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-secondary"><Icon className="size-4" /></span>
+                <span className="min-w-0"><span className="block text-sm font-medium">{label}</span><span className="block truncate text-[11px] text-muted-foreground">{copy}</span></span>
+                <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
       {notice && (
-        <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-md border border-success/25 bg-popover px-4 py-3 text-sm shadow-panel">
-          <Check className="size-4 text-success" /> {notice}
+        <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-md border border-success/25 bg-popover px-4 py-3 text-sm shadow-panel lg:bottom-5">
+          <Check className="size-4 shrink-0 text-success" /> <span className="truncate">{notice}</span>
         </div>
       )}
       {action && <ActionModal title={action} onClose={() => setAction(null)} onDone={(msg) => { setAction(null); showNotice(msg); }} />}
+      <ConnectWalletDialog open={connectOpen} onOpenChange={setConnectOpen} onConnected={(w) => { setWallet(w); setConnectOpen(false); showNotice(`${w} connected`); }} />
+      <ProfileSheet
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        wallet={wallet}
+        onConnect={() => { setProfileOpen(false); setConnectOpen(true); }}
+        onDisconnect={disconnect}
+        onInvite={() => go("Invite Friends")}
+        onNotice={showNotice}
+      />
+      <ReceiptDialog receipt={receipt} onClose={() => setReceipt(null)} onNotice={showNotice} />
     </div>
   );
 }
 
-function Header({ view, onView }: { view: View; onView: (view: View) => void }) {
+function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNotice }: {
+  view: View;
+  onView: (view: View) => void;
+  wallet: string | null;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onProfile: () => void;
+  onNotice: (m: string) => void;
+}) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-5 px-4 sm:px-6 lg:px-8">
-        <button className="flex shrink-0 items-center gap-3" onClick={() => onView("Portfolio")} aria-label="Open portfolio">
-          <span className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground shadow-glow"><Layers3 className="size-5" /></span>
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:gap-5 sm:px-6 lg:px-8">
+        <button className="flex min-w-0 shrink-0 items-center gap-3" onClick={() => onView("Portfolio")} aria-label="Open portfolio">
+          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground shadow-glow"><Layers3 className="size-5" /></span>
           <span className="text-base font-semibold">DepVest</span>
-          <span className="hidden rounded border border-border px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground sm:inline">Multi-Asset Hub</span>
+          <span className="hidden rounded border border-border px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground 2xl:inline">Multi-Asset Hub</span>
         </button>
         <nav className="hidden rounded-full border border-border bg-card p-1 lg:flex" aria-label="Primary navigation">
           {navItems.map((item) => <NavButton key={item.label} item={item} active={view === item.label} onClick={() => onView(item.label)} />)}
         </nav>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="hidden items-center gap-2 rounded-full border border-border bg-card px-3 py-2 font-mono text-[10px] text-muted-foreground sm:flex"><i className="size-1.5 animate-pulse rounded-full bg-success" /> Live yields</span>
-          <Button variant="outline" size="icon" className="rounded-full border-border bg-card" aria-label="Notifications"><Bell className="size-4" /></Button>
-          <span className="grid size-9 place-items-center rounded-full border border-border bg-secondary text-xs font-semibold">AK</span>
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <div className="hidden items-center gap-1 xl:flex">
+            {moreItems.map((m) => <button key={m.label} onClick={() => onView(m.label)} className={cn("rounded-full px-3 py-2 text-xs transition-colors", view === m.label ? "text-foreground" : "text-muted-foreground hover:text-foreground")}>{m.label}</button>)}
+          </div>
+          {wallet ? (
+            <WalletChip wallet={wallet} onDisconnect={onDisconnect} onNotice={onNotice} />
+          ) : (
+            <Button onClick={onConnect} className="h-9 shrink-0 rounded-full bg-success px-3 text-primary-foreground hover:bg-success/90 sm:px-4">
+              <WalletCards /><span className="hidden sm:inline">Connect Wallet</span><span className="sm:hidden">Connect</span>
+            </Button>
+          )}
+          <NotificationsPopover />
+          <button onClick={onProfile} aria-label="Open profile" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-secondary text-xs font-semibold transition-colors hover:border-success/50">AK</button>
         </div>
       </div>
-      <nav className="flex gap-2 overflow-x-auto border-t border-border/70 px-3 py-2 lg:hidden" aria-label="Mobile navigation">
-        {navItems.map((item) => (
-          <Button key={item.label} variant={view === item.label ? "default" : "outline"} className="shrink-0 rounded-full" onClick={() => onView(item.label)}>
-            {item.mobile}
-          </Button>
-        ))}
-      </nav>
     </header>
+  );
+}
+
+function MobileNav({ view, onView, onMore }: { view: View; onView: (v: View) => void; onMore: () => void }) {
+  const moreActive = moreItems.some((m) => m.label === view);
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden" aria-label="Mobile navigation">
+      {navItems.map(({ label, short, icon: Icon }) => (
+        <button key={label} onClick={() => onView(label)} className={cn("flex flex-col items-center gap-1 py-2.5 text-[10px]", view === label ? "text-success" : "text-muted-foreground")}>
+          <Icon className="size-5" />{short}
+        </button>
+      ))}
+      <button onClick={onMore} className={cn("flex flex-col items-center gap-1 py-2.5 text-[10px]", moreActive ? "text-success" : "text-muted-foreground")}>
+        <Menu className="size-5" />More
+      </button>
+    </nav>
   );
 }
 
@@ -201,16 +298,25 @@ function NavButton({ item, active, onClick }: { item: (typeof navItems)[number];
   return <button onClick={onClick} className={cn("flex h-8 items-center gap-2 rounded-full px-4 text-xs transition-colors", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}><Icon className="size-3.5" />{item.label}</button>;
 }
 
-function Portfolio({ onAction, onNotice }: { onAction: (value: string) => void; onNotice: (value: string) => void }) {
+function Portfolio({ onAction, onNotice, onView }: { onAction: (value: string) => void; onNotice: (value: string) => void; onView: (v: View) => void }) {
   return (
     <>
       <PortfolioSummary onAction={onAction} onNotice={onNotice} />
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {moreItems.map(({ label, icon: Icon, copy }) => (
+          <button key={label} onClick={() => onView(label)} className="flex items-center gap-3 rounded-[14px] border border-border bg-card p-4 text-left transition-colors hover:border-success/40">
+            <span className="vault-icon accent-cash shrink-0"><Icon className="size-4" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{label}</span><span className="block truncate text-[11px] text-muted-foreground">{copy}</span></span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </button>
+        ))}
+      </div>
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
           <SectionLabel title="Asset Vaults" right="4 active · $ 12,450.80 TVL" />
           <div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={vault} onAction={onAction} onNotice={onNotice} />)}</div>
           <div className="mt-4 flex items-center gap-3 rounded-md border border-dashed border-border bg-card/40 p-4 text-xs text-muted-foreground">
-            <Sparkles className="size-4" /><span>Add a new vault? Explore private credit & DePIN coming soon.</span>
+            <Sparkles className="size-4 shrink-0" /><span className="min-w-0">Add a new vault? Explore private credit & DePIN coming soon.</span>
             <Button variant="outline" size="sm" className="ml-auto" onClick={() => onNotice("You joined the early access list")}>Join waitlist</Button>
           </div>
         </section>
@@ -245,7 +351,7 @@ function PortfolioSummary({ onAction, onNotice }: { onAction: (value: string) =>
             </div>
           </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto lg:flex-col">
+        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
           <Button className="shrink-0 justify-center rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction("Deposit funds")}><Plus />Deposit</Button>
           <Button variant="outline" className="shrink-0 justify-center rounded-full" onClick={() => onAction("Withdraw funds")}><ArrowDownToLine />Withdraw</Button>
           <Button variant="outline" className="shrink-0 justify-center rounded-full" onClick={() => onNotice("Portfolio rebalanced to your target allocation")}><RefreshCw />Rebalance</Button>
@@ -272,7 +378,7 @@ function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[numbe
       </div>
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
         <div><Label>Balance</Label><div className="mt-1 flex items-baseline gap-2"><strong className="font-mono text-[22px]">{vault.balance}</strong><span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[9px] text-muted-foreground">{vault.allocation}</span></div><p className="mt-2 text-[10px] text-muted-foreground">◉ {vault.terms}</p></div>
-        <div className="ml-auto flex gap-2"><Button variant="outline" size="sm" className="rounded-full" onClick={() => onNotice(`${vault.name} rebalance preview opened`)}>Rebalance <ChevronRight /></Button><Button size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction(`${vault.action}: ${vault.name}`)}>{vault.action} <ArrowUpRight /></Button></div>
+        <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex"><Button variant="outline" size="sm" className="rounded-full" onClick={() => onNotice(`${vault.name} rebalance preview opened`)}>Rebalance <ChevronRight /></Button><Button size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction(`${vault.action}: ${vault.name}`)}><span className="truncate">{vault.action}</span> <ArrowUpRight /></Button></div>
       </div>
       <div className="mt-4 h-0.5 overflow-hidden rounded-full bg-secondary"><span className={cn("block h-full", `bar-${vault.accent}`)} style={{ width: vault.allocation }} /></div>
     </article>
@@ -294,7 +400,7 @@ function Performance() {
         </svg>
       </div>
       <div className="flex justify-between font-mono text-[9px] text-muted-foreground"><span>Oct 24</span><span className="flex gap-4"><i className="text-success">— Actual</i><i>— Projected</i></span><span>Now</span></div>
-      <div className="mt-5 grid grid-cols-3 gap-2"><Metric label="Total Gain" value="+$318.40" note="+2.62% this month" success /><Metric label="APY Weighted" value="7.31%" note="Blended yield" /><Metric label="Projected 1Y" value="$14,420.00" note="+15.8%" success /></div>
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1"><Metric label="Total Gain" value="+$318.40" note="+2.62% this month" success /><Metric label="APY Weighted" value="7.31%" note="Blended yield" /><Metric label="Projected 1Y" value="$14,420.00" note="+15.8%" success /></div>
       <div className="my-6 border-t border-border" />
       <SectionLabel title="Recent Activity Feed" right="View all" />
       <div className="space-y-2">{activity.map((item) => { const Icon = item.icon; return <div key={item.title} className="flex items-center gap-3 rounded-md border border-border bg-background/30 p-3"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><Icon className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-medium">{item.title} <span className="font-mono text-success">{item.value}</span></p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><Check className="size-3 text-muted-foreground" /></div>; })}</div>
@@ -311,11 +417,17 @@ function Invest({ onAction }: { onAction: (value: string) => void }) {
 
 function ActiveEarn({ onNotice }: { onNotice: (value: string) => void }) {
   const tasks = [{ title: "Validate product labels", reward: "$0.38", time: "~3 min", icon: Bot }, { title: "Review AI summary", reward: "$0.45", time: "~4 min", icon: Sparkles }, { title: "Classify satellite tiles", reward: "$0.29", time: "~2 min", icon: Layers3 }];
-  return <section><PageIntro eyebrow="Active Earn" title="Earn in the moments between." copy="Complete verified data tasks and receive direct micro-payouts to your wallet." /><div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div className="space-y-3">{tasks.map(({ title, reward, time, icon: Icon }) => <article key={title} className="flex items-center gap-4 rounded-[14px] border border-border bg-card p-5"><span className="vault-icon accent-task"><Icon className="size-5" /></span><div className="flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-[10px] text-muted-foreground">Open queue · {time}</p></div><strong className="font-mono text-success">{reward}</strong><Button size="sm" className="rounded-full" onClick={() => onNotice(`${title} started`)}>Start <ChevronRight /></Button></article>)}</div><div className="rounded-[14px] border border-border bg-card p-6"><Label>Today</Label><p className="mt-3 font-mono text-4xl">$6.82</p><p className="mt-2 text-xs text-success">18 tasks completed</p><div className="mt-8 space-y-3"><ProgressRow label="Daily goal" value="68%" /><ProgressRow label="Accuracy" value="98%" /><ProgressRow label="Approval rate" value="100%" /></div></div></div></section>;
+  return <section><PageIntro eyebrow="Active Earn" title="Earn in the moments between." copy="Complete verified data tasks and receive direct micro-payouts to your wallet." /><div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div className="space-y-3">{tasks.map(({ title, reward, time, icon: Icon }) => <article key={title} className="flex flex-wrap items-center gap-3 rounded-[14px] border border-border bg-card p-4 sm:flex-nowrap sm:gap-4 sm:p-5"><span className="vault-icon accent-task shrink-0"><Icon className="size-5" /></span><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-[10px] text-muted-foreground">Open queue · {time}</p></div><strong className="font-mono text-success">{reward}</strong><Button size="sm" className="rounded-full" onClick={() => onNotice(`${title} started`)}>Start <ChevronRight /></Button></article>)}</div><div className="rounded-[14px] border border-border bg-card p-6"><Label>Today</Label><p className="mt-3 font-mono text-4xl">$6.82</p><p className="mt-2 text-xs text-success">18 tasks completed</p><div className="mt-8 space-y-3"><ProgressRow label="Daily goal" value="68%" /><ProgressRow label="Accuracy" value="98%" /><ProgressRow label="Approval rate" value="100%" /></div></div></div></section>;
 }
 
-function WalletLedger({ onAction }: { onAction: (value: string) => void }) {
-  return <section><PageIntro eyebrow="Wallet & Ledger" title="Every movement, accounted for." copy="Review balances, yields, and verified portfolio transactions in one place." /><div className="grid gap-5 md:grid-cols-3"><WalletStat label="Available cash" value="$1,240.16" icon={<WalletCards />} /><WalletStat label="Pending yield" value="$22.97" icon={<Activity />} /><WalletStat label="Total earned" value="$1,086.42" icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="flex items-center justify-between border-b border-border p-5"><div><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Most recent verified entries</p></div><Button size="sm" variant="outline" className="rounded-full" onClick={() => onAction("Export ledger")}>Export</Button></div>{activity.concat([{ title: "Portfolio deposit", value: "+$500.00", meta: "Bank transfer • Oct 22 16:42 UTC", accent: "digital" as Accent, icon: ArrowDownToLine }]).map((item) => <div key={item.title} className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border px-5 py-4 last:border-0"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div><p className="text-xs font-medium">{item.title}</p><p className="mt-1 text-[9px] text-muted-foreground">{item.meta}</p></div><span className="font-mono text-xs text-success">{item.value}</span></div>)}</div></section>;
+function WalletLedger({ onAction, onReceipt, wallet, onConnect }: { onAction: (value: string) => void; onReceipt: (r: Receipt) => void; wallet: string | null; onConnect: () => void }) {
+  return <section><PageIntro eyebrow="Wallet & Ledger" title="Every movement, accounted for." copy="Review balances, yields, and verified portfolio transactions in one place." />
+    <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-border bg-card p-5 sm:flex-row sm:items-center">
+      <span className="vault-icon accent-cash shrink-0"><WalletCards className="size-5" /></span>
+      <div className="min-w-0 flex-1">{wallet ? <><p className="text-sm font-semibold">{wallet} connected</p><p className="mt-1 font-mono text-[11px] text-muted-foreground">{WALLET_ADDRESS} · Base network</p></> : <><p className="text-sm font-semibold">No wallet connected</p><p className="mt-1 text-[11px] text-muted-foreground">Connect a wallet to deposit and receive payouts.</p></>}</div>
+      <div className="grid grid-cols-2 gap-2 sm:flex">{wallet ? <><Button className="rounded-full" onClick={() => onAction("Deposit funds")}><Plus />Deposit</Button><Button variant="outline" className="rounded-full" onClick={() => onAction("Withdraw funds")}><ArrowDownToLine />Withdraw</Button></> : <Button className="col-span-2 rounded-full bg-success text-primary-foreground hover:bg-success/90" onClick={onConnect}><WalletCards />Connect Wallet</Button>}</div>
+    </div>
+    <div className="grid gap-4 sm:grid-cols-3 sm:gap-5"><WalletStat label="Available cash" value="$1,240.16" icon={<WalletCards />} /><WalletStat label="Pending yield" value="$22.97" icon={<Activity />} /><WalletStat label="Total earned" value="$1,086.42" icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="flex items-center justify-between gap-3 border-b border-border p-5"><div className="min-w-0"><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Tap an entry to view its receipt</p></div><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => onAction("Export ledger")}>Export</Button></div>{activity.concat([{ title: "Portfolio deposit", value: "+$500.00", meta: "Bank transfer • Oct 22 16:42 UTC", accent: "digital" as Accent, icon: ArrowDownToLine }]).map((item) => <button key={item.title} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><span className="font-mono text-xs text-success">{item.value}</span></button>)}</div></section>;
 }
 
 function ActionModal({ title, onClose, onDone }: { title: string; onClose: () => void; onDone: (value: string) => void }) {
@@ -329,6 +441,6 @@ function Badge({ children, accent }: { children: ReactNode; accent: Accent }) { 
 function Legend({ accent, label, value }: { accent: Accent; label: string; value: string }) { return <span className="flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-[10px]"><i className={cn("size-2 rounded-full", `bar-${accent}`)} />{label}<b className="font-mono text-muted-foreground">{value}</b></span>; }
 function SectionLabel({ title, right }: { title: string; right: string }) { return <div className="mb-4 flex items-center justify-between"><Label>{title}</Label><span className="font-mono text-[9px] text-muted-foreground">{right}</span></div>; }
 function Metric({ label, value, note, success }: { label: string; value: string; note: string; success?: boolean }) { return <div className="rounded-md border border-border bg-secondary/50 p-3"><Label>{label}</Label><p className={cn("mt-2 font-mono text-xs font-semibold", success && "text-success")}>{value}</p><p className={cn("mt-1 text-[9px] text-muted-foreground", success && note.startsWith("+") && "text-success")}>{note}</p></div>; }
-function PageIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) { return <div className="mb-10 max-w-2xl"><Label>{eyebrow}</Label><h1 className="mt-4 text-4xl font-semibold md:text-[44px]">{title}</h1><p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">{copy}</p></div>; }
+function PageIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) { return <div className="mb-8 max-w-2xl md:mb-10"><Label>{eyebrow}</Label><h1 className="mt-4 text-3xl font-semibold sm:text-4xl md:text-[44px]">{title}</h1><p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">{copy}</p></div>; }
 function ProgressRow({ label, value }: { label: string; value: string }) { return <div><div className="flex justify-between text-xs"><span className="text-muted-foreground">{label}</span><span className="font-mono">{value}</span></div><div className="mt-2 h-1.5 rounded-full bg-secondary"><div className="h-full rounded-full bg-primary" style={{ width: value }} /></div></div>; }
 function WalletStat({ label, value, icon }: { label: string; value: string; icon: ReactNode }) { return <div className="rounded-[14px] border border-border bg-card p-6"><span className="vault-icon accent-cash">{icon}</span><p className="mt-6 text-xs text-muted-foreground">{label}</p><p className="mt-2 font-mono text-2xl">{value}</p></div>; }
