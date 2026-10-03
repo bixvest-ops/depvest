@@ -19,6 +19,8 @@
  */
 
 @theme inline {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -59,29 +61,45 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-cloud: var(--cloud);
+  --color-digital: var(--digital);
+  --color-task: var(--task);
+  --color-overlay: var(--overlay);
+  --shadow-panel: var(--shadow-panel);
+  --shadow-card: var(--shadow-card);
+  --shadow-glow: var(--shadow-glow);
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
+  --radius: 0.5rem;
+  --background: oklch(0.105 0.018 265);
+  --foreground: oklch(0.97 0.006 255);
+  --card: oklch(0.16 0.018 265);
+  --card-foreground: oklch(0.97 0.006 255);
+  --popover: oklch(0.18 0.018 265);
+  --popover-foreground: oklch(0.97 0.006 255);
+  --primary: oklch(0.72 0.17 165);
+  --primary-foreground: oklch(0.12 0.02 260);
+  --secondary: oklch(0.22 0.018 265);
+  --secondary-foreground: oklch(0.95 0.008 255);
+  --muted: oklch(0.22 0.018 265);
+  --muted-foreground: oklch(0.63 0.02 260);
+  --accent: oklch(0.25 0.02 265);
+  --accent-foreground: oklch(0.97 0.006 255);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  --border: oklch(0.29 0.018 265 / 0.85);
+  --input: oklch(0.34 0.02 265);
+  --ring: oklch(0.72 0.17 165);
+  --success: oklch(0.76 0.17 165);
+  --cloud: oklch(0.67 0.19 300);
+  --digital: oklch(0.68 0.16 252);
+  --task: oklch(0.78 0.17 78);
+  --overlay: oklch(0.06 0.01 260 / 0.82);
+  --shadow-panel: 0 20px 80px oklch(0.03 0.01 260 / 0.7);
+  --shadow-card: 0 8px 24px oklch(0.03 0.01 260 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.04);
+  --shadow-glow: 0 0 24px oklch(0.72 0.17 165 / 0.35);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -140,5 +158,31 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    letter-spacing: 0;
+    background-image: linear-gradient(to bottom, oklch(0.12 0.026 250 / 0.5), transparent 22rem);
   }
+
+  button, a, input { letter-spacing: 0; }
+}
+
+@layer components {
+  .allocation-ring { background: conic-gradient(var(--success) 0 35%, var(--cloud) 35% 75%, var(--digital) 75% 95%, var(--task) 95% 100%); }
+  .vault-icon { display: grid; width: 2.75rem; height: 2.75rem; flex-shrink: 0; place-items: center; border-radius: 0.5rem; border: 1px solid; }
+  .accent-cash { color: var(--success); border-color: color-mix(in oklab, var(--success) 25%, transparent); background: color-mix(in oklab, var(--success) 10%, transparent); }
+  .accent-cloud { color: var(--cloud); border-color: color-mix(in oklab, var(--cloud) 25%, transparent); background: color-mix(in oklab, var(--cloud) 10%, transparent); }
+  .accent-digital { color: var(--digital); border-color: color-mix(in oklab, var(--digital) 25%, transparent); background: color-mix(in oklab, var(--digital) 10%, transparent); }
+  .accent-task { color: var(--task); border-color: color-mix(in oklab, var(--task) 25%, transparent); background: color-mix(in oklab, var(--task) 10%, transparent); }
+  .badge-cash { color: var(--success); border-color: color-mix(in oklab, var(--success) 22%, transparent); background: color-mix(in oklab, var(--success) 10%, transparent); }
+  .badge-cloud { color: var(--cloud); border-color: color-mix(in oklab, var(--cloud) 22%, transparent); background: color-mix(in oklab, var(--cloud) 10%, transparent); }
+  .badge-digital { color: var(--digital); border-color: color-mix(in oklab, var(--digital) 22%, transparent); background: color-mix(in oklab, var(--digital) 10%, transparent); }
+  .badge-task { color: var(--task); border-color: color-mix(in oklab, var(--task) 22%, transparent); background: color-mix(in oklab, var(--task) 10%, transparent); }
+  .bar-cash { background-color: var(--success); }
+  .bar-cloud { background-color: var(--cloud); }
+  .bar-digital { background-color: var(--digital); }
+  .bar-task { background-color: var(--task); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
