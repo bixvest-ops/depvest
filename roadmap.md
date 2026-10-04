@@ -16,3 +16,7 @@
 - [x] Yield calculator
 - [x] Active Earn tasks you can complete for a payout
 - [x] Vault details window, DePIN waitlist, CSV ledger export
+- [x] Empty allocation + Pending yield empty state; rates/fees/rewards/FAQ unconfigured until verified
+- [x] About, Rules, Support (multi-channel), rewritten How It Works & Q&A
+- [x] Admin terms upload with AI extraction + review/apply
+- [ ] Wallet ledger date/type filters (not started — credits ran out)
