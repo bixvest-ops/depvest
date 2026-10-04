@@ -42,6 +42,7 @@ import {
   WALLET_ADDRESS,
   type Receipt,
 } from "@/components/depvest/extras";
+import { CalculatorDialog, exportLedgerCsv, RebalanceDialog, TaskDialog, TransferDialog, VaultDetailDialog, type Alloc, type Flow } from "@/components/depvest/flows";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -163,7 +164,12 @@ const activity = [
 function DepVestApp() {
   const [view, setView] = useState<View>("Portfolio");
   const [notice, setNotice] = useState("");
-  const [action, setAction] = useState<string | null>(null);
+  const [flow, setFlow] = useState<Flow>(null);
+  const [cash, setCash] = useState(1240.16);
+  const [earned, setEarned] = useState(6.82);
+  const [tasksDone, setTasksDone] = useState(18);
+  const [alloc, setAlloc] = useState<Alloc>({ Cash: 35, Cloud: 40, Digital: 20, Task: 5 });
+  const [ledger, setLedger] = useState<typeof activity>([]);
   const [wallet, setWallet] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -180,6 +186,24 @@ function DepVestApp() {
     setProfileOpen(false);
     window.scrollTo({ top: 0 });
   };
+  const fmt = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const stamp = () => new Date().toUTCString().slice(5, 22) + " UTC";
+  const addEntry = (title: string, value: string, meta: string, accent: Accent, icon: typeof Zap) => setLedger((l) => [{ title, value, meta, accent, icon }, ...l]);
+  const allRows = () => [...ledger, ...activity, { title: "Portfolio deposit", value: "+$500.00", meta: "Bank transfer • Oct 22 16:42 UTC", accent: "digital" as Accent, icon: ArrowDownToLine }];
+  const setAction = (a: string) => {
+    if (a === "Deposit" || a === "Deposit funds") return setFlow({ kind: "deposit" });
+    if (a === "Withdraw funds") return setFlow({ kind: "withdraw" });
+    if (a === "Rebalance") return setFlow({ kind: "rebalance" });
+    if (a === "Calculator") { showNotice("Calculator opened — $1k simulation"); return setFlow({ kind: "calculator" }); }
+    if (a === "Waitlist") return showNotice("Waitlist joined — DePIN vaults coming soon");
+    if (a === "Quick Earn") { showNotice("Quick Earn queue opened"); return go("Active Earn"); }
+    if (a === "Export ledger") { exportLedgerCsv(allRows()); return showNotice("Ledger exported as CSV"); }
+    if (a.startsWith("Task|")) { const [, title, reward] = a.split("|"); return setFlow({ kind: "task", title, reward: Number(reward) }); }
+    if (a.startsWith("Invest in ")) return setFlow({ kind: "vault", name: a.slice(10) });
+    if (a.startsWith("Start Earning")) return go("Active Earn");
+    const name = a.split(": ")[1];
+    setFlow({ kind: "deposit", vault: name });
+  };
   const disconnect = () => { setWallet(null); setProfileOpen(false); showNotice("Wallet disconnected"); };
 
   return (
@@ -195,10 +219,10 @@ function DepVestApp() {
         onNotice={showNotice}
       />
       <main className="mx-auto w-full max-w-[1440px] px-4 pb-32 pt-6 sm:px-6 md:pt-8 lg:px-8 lg:pb-20">
-        {view === "Portfolio" && <Portfolio onAction={setAction} onNotice={showNotice} onView={go} />}
+        {view === "Portfolio" && <Portfolio onAction={setAction} onNotice={showNotice} onView={go} alloc={alloc} />}
         {view === "Invest" && <Invest onAction={setAction} />}
-        {view === "Active Earn" && <ActiveEarn onNotice={showNotice} />}
-        {view === "Wallet & Ledger" && <WalletLedger onAction={setAction} onReceipt={setReceipt} wallet={wallet} onConnect={() => setConnectOpen(true)} />}
+        {view === "Active Earn" && <ActiveEarn onAction={setAction} earned={earned} done={tasksDone} />}
+        {view === "Wallet & Ledger" && <WalletLedger rows={allRows()} cash={cash} onAction={setAction} onReceipt={setReceipt} wallet={wallet} onConnect={() => setConnectOpen(true)} />}
         {view === "Invite Friends" && <InviteFriends onNotice={showNotice} />}
         {view === "How It Works" && <HowItWorks onStart={() => go("Invest")} />}
         {view === "Q&A" && <FAQ onContact={() => showNotice("Support chat opened")} />}
@@ -223,7 +247,13 @@ function DepVestApp() {
           <Check className="size-4 shrink-0 text-success" /> <span className="truncate">{notice}</span>
         </div>
       )}
-      {action && <ActionModal title={action} onClose={() => setAction(null)} onDone={(msg) => { setAction(null); showNotice(msg); }} />}
+      <TransferDialog flow={flow} cash={cash} onClose={() => setFlow(null)} onNotice={showNotice}
+        onDeposit={(n, net) => { setFlow(null); setCash((c) => c + n); addEntry("USDC deposit", `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus); showNotice(`Deposited ${fmt(n)} USDC on ${net}`); }}
+        onWithdraw={(n, net) => { setFlow(null); setCash((c) => c - n); addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} network • ${stamp()}`, "digital", ArrowDownToLine); showNotice(`Withdrawal of ${fmt(n)} sent — instant USDC`); }} />
+      <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} onClose={() => setFlow(null)} onSave={(a) => { setAlloc(a); setFlow(null); addEntry("Portfolio rebalanced", "$0.00", `Applies next epoch • ${stamp()}`, "cloud", RefreshCw); showNotice("Rebalance scheduled — settles in ~2h"); }} />
+      <CalculatorDialog open={flow?.kind === "calculator"} alloc={alloc} onClose={() => setFlow(null)} onInvest={() => setFlow({ kind: "deposit" })} />
+      <TaskDialog flow={flow} onClose={() => setFlow(null)} onComplete={(title, reward) => { setFlow(null); setCash((c) => c + reward); setEarned((e) => e + reward); setTasksDone((t) => t + 1); addEntry("AI micro-task verified", `+${fmt(reward)}`, `${title} • ${stamp()}`, "task", Zap); showNotice(`Task payout: +${fmt(reward)} USDC`); }} />
+      <VaultDetailDialog vault={flow?.kind === "vault" ? (vaults.find((v) => v.name === flow.name) ?? null) : null} onClose={() => setFlow(null)} onNotice={showNotice} onDeposit={(name) => setFlow({ kind: "deposit", vault: name })} />
       <ConnectWalletDialog open={connectOpen} onOpenChange={setConnectOpen} onConnected={(w) => { setWallet(w); setConnectOpen(false); showNotice(`${w} connected`); }} />
       <ProfileSheet
         open={profileOpen}
@@ -318,10 +348,10 @@ function NavButton({ item, active, onClick }: { item: (typeof navItems)[number];
   return <button onClick={onClick} className={cn("flex h-8 items-center gap-2 rounded-full px-4 text-xs transition-colors", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}><Icon className="size-3.5" />{item.label}</button>;
 }
 
-function Portfolio({ onAction, onNotice, onView }: { onAction: (value: string) => void; onNotice: (value: string) => void; onView: (v: View) => void }) {
+function Portfolio({ onAction, onNotice, onView, alloc }: { onAction: (value: string) => void; onNotice: (value: string) => void; onView: (v: View) => void; alloc: Alloc }) {
   return (
     <>
-      <PortfolioSummary onAction={onAction} onNotice={onNotice} />
+      <PortfolioSummary onAction={onAction} alloc={alloc} />
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         {moreItems.map(({ label, icon: Icon, copy }) => (
           <button key={label} onClick={() => onView(label)} className="flex items-center gap-3 rounded-[14px] border border-border bg-card p-4 text-left transition-colors hover:border-success/40">
@@ -337,11 +367,11 @@ function Portfolio({ onAction, onNotice, onView }: { onAction: (value: string) =
           <div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={vault} onAction={onAction} onNotice={onNotice} />)}</div>
           <div className="mt-4 flex items-center gap-3 rounded-md border border-dashed border-border bg-card/40 p-4 text-xs text-muted-foreground">
             <Sparkles className="size-4 shrink-0" /><span className="min-w-0">Add a new vault? Explore private credit & DePIN coming soon.</span>
-            <Button variant="outline" size="sm" className="ml-auto" onClick={() => onNotice("You joined the early access list")}>Join waitlist</Button>
+            <Button variant="outline" size="sm" className="ml-auto" onClick={() => onAction("Waitlist")}>Join waitlist</Button>
           </div>
         </section>
         <aside className="space-y-4 lg:sticky lg:top-24">
-          <Performance />
+          <Performance onAction={onAction} />
           <div className="flex items-start gap-3 rounded-md border border-border bg-card p-5">
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary"><ShieldCheck className="size-4 text-muted-foreground" /></span>
             <div><p className="text-xs font-medium">Institutional-grade custody</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Cash held in USDC at regulated custodians • Compute contracts insured • Staking via audited validators. No leverage.</p></div>
@@ -352,7 +382,7 @@ function Portfolio({ onAction, onNotice, onView }: { onAction: (value: string) =
   );
 }
 
-function PortfolioSummary({ onAction, onNotice }: { onAction: (value: string) => void; onNotice: (value: string) => void }) {
+function PortfolioSummary({ onAction, alloc }: { onAction: (value: string) => void; alloc: Alloc }) {
   return (
     <section className="overflow-hidden rounded-[18px] border border-border bg-card shadow-panel">
       <div className="grid gap-8 p-6 md:p-8 lg:grid-cols-[1fr_250px]">
@@ -362,20 +392,20 @@ function PortfolioSummary({ onAction, onNotice }: { onAction: (value: string) =>
           <div className="mt-10 grid items-center gap-8 md:grid-cols-[1fr_auto]">
             <div>
               <div className="mb-3 flex justify-between"><Label>Asset Allocation</Label><span className="font-mono text-[10px] text-muted-foreground">Rebalanced 2h ago</span></div>
-              <AllocationBar />
-              <div className="mt-3 flex flex-wrap gap-2"><Legend accent="cash" label="Cash" value="35%" /><Legend accent="cloud" label="Cloud" value="40%" /><Legend accent="digital" label="Digital" value="20%" /><Legend accent="task" label="Task" value="5%" /></div>
+              <AllocationBar alloc={alloc} />
+              <div className="mt-3 flex flex-wrap gap-2"><Legend accent="cash" label="Cash" value={`${alloc.Cash}%`} /><Legend accent="cloud" label="Cloud" value={`${alloc.Cloud}%`} /><Legend accent="digital" label="Digital" value={`${alloc.Digital}%`} /><Legend accent="task" label="Task" value={`${alloc.Task}%`} /></div>
             </div>
             <div className="flex items-center gap-8">
               <div className="allocation-ring grid size-[132px] shrink-0 place-items-center rounded-full"><div className="grid size-[92px] place-items-center rounded-full bg-card text-center"><div><Label>Allocation</Label><p className="mt-1 text-lg font-semibold">4 ASSETS</p></div></div></div>
-              <div className="hidden grid-cols-2 gap-x-6 gap-y-3 text-xs xl:grid"><span className="text-muted-foreground">Cash</span><b>35%</b><span className="text-muted-foreground">Cloud</span><b>40%</b><span className="text-muted-foreground">Digital</span><b>20%</b><span className="text-muted-foreground">Task</span><b>5%</b></div>
+              <div className="hidden grid-cols-2 gap-x-6 gap-y-3 text-xs xl:grid"><span className="text-muted-foreground">Cash</span><b>{alloc.Cash}%</b><span className="text-muted-foreground">Cloud</span><b>{alloc.Cloud}%</b><span className="text-muted-foreground">Digital</span><b>{alloc.Digital}%</b><span className="text-muted-foreground">Task</span><b>{alloc.Task}%</b></div>
             </div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
           <Button className="shrink-0 justify-center rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction("Deposit funds")}><Plus />Deposit</Button>
           <Button variant="outline" className="shrink-0 justify-center rounded-full" onClick={() => onAction("Withdraw funds")}><ArrowDownToLine />Withdraw</Button>
-          <Button variant="outline" className="shrink-0 justify-center rounded-full" onClick={() => onNotice("Portfolio rebalanced to your target allocation")}><RefreshCw />Rebalance</Button>
-          <Button className="shrink-0 justify-center rounded-full border border-success/25 bg-success/15 text-success hover:bg-success/20" onClick={() => onNotice("Quick Earn is ready to explore")}><Zap />Quick Earn</Button>
+          <Button variant="outline" className="shrink-0 justify-center rounded-full" onClick={() => onAction("Rebalance")}><RefreshCw />Rebalance</Button>
+          <Button className="shrink-0 justify-center rounded-full border border-success/25 bg-success/15 text-success hover:bg-success/20" onClick={() => onAction("Quick Earn")}><Zap />Quick Earn</Button>
         </div>
       </div>
       <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-border px-6 py-4 text-[10px] text-muted-foreground md:px-8"><span>◉ SIPC insured cash · Audit proof</span><span>◉ Yields credited daily 00:00 UTC</span><span>◉ 4 vaults · Auto-compound on</span></div>
@@ -398,14 +428,14 @@ function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[numbe
       </div>
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
         <div><Label>Balance</Label><div className="mt-1 flex items-baseline gap-2"><strong className="font-mono text-[22px]">{vault.balance}</strong><span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[9px] text-muted-foreground">{vault.allocation}</span></div><p className="mt-2 text-[10px] text-muted-foreground">◉ {vault.terms}</p></div>
-        <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex"><Button variant="outline" size="sm" className="rounded-full" onClick={() => onNotice(`${vault.name} rebalance preview opened`)}>Rebalance <ChevronRight /></Button><Button size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction(`${vault.action}: ${vault.name}`)}><span className="truncate">{vault.action}</span> <ArrowUpRight /></Button></div>
+        <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex"><Button variant="outline" size="sm" className="rounded-full" onClick={() => onAction(`Invest in ${vault.name}`)}>Details <ChevronRight /></Button><Button size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction(`${vault.action}: ${vault.name}`)}><span className="truncate">{vault.action}</span> <ArrowUpRight /></Button></div>
       </div>
       <div className="mt-4 h-0.5 overflow-hidden rounded-full bg-secondary"><span className={cn("block h-full", `bar-${vault.accent}`)} style={{ width: vault.allocation }} /></div>
     </article>
   );
 }
 
-function Performance() {
+function Performance({ onAction }: { onAction: (v: string) => void }) {
   const [range, setRange] = useState("1M");
   return (
     <section className="rounded-[14px] border border-border bg-card p-5 shadow-card md:p-6">
@@ -421,6 +451,7 @@ function Performance() {
       </div>
       <div className="flex justify-between font-mono text-[9px] text-muted-foreground"><span>Oct 24</span><span className="flex gap-4"><i className="text-success">— Actual</i><i>— Projected</i></span><span>Now</span></div>
       <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1"><Metric label="Total Gain" value="+$318.40" note="+2.62% this month" success /><Metric label="APY Weighted" value="7.31%" note="Blended yield" /><Metric label="Projected 1Y" value="$14,420.00" note="+15.8%" success /></div>
+      <button onClick={() => onAction("Calculator")} className="mt-4 flex w-full items-center gap-3 rounded-md border border-success/25 bg-success/10 p-3 text-left"><Sparkles className="size-4 shrink-0 text-success" /><span className="min-w-0 flex-1 text-[11px]"><b className="block font-mono text-[9px] tracking-[0.16em] text-muted-foreground">SIMULATOR</b>$1,000 → $1,073 in 12 months at 7.31% blended</span><span className="shrink-0 text-[11px] text-success">Open calculator</span></button>
       <div className="my-6 border-t border-border" />
       <SectionLabel title="Recent Activity Feed" right="View all" />
       <div className="space-y-2">{activity.map((item) => { const Icon = item.icon; return <div key={item.title} className="flex items-center gap-3 rounded-md border border-border bg-background/30 p-3"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><Icon className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-medium">{item.title} <span className="font-mono text-success">{item.value}</span></p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><Check className="size-3 text-muted-foreground" /></div>; })}</div>
@@ -435,27 +466,22 @@ function Invest({ onAction }: { onAction: (value: string) => void }) {
   return <section><PageIntro eyebrow="Vault Marketplace" title="Put every dollar to work." copy="Compare verified yield strategies across cash, compute, and digital assets." /><div className="mb-6 flex items-center gap-3 rounded-md border border-border bg-card px-4"><Search className="size-4 text-muted-foreground"/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search vaults" className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" /></div><div className="grid gap-4 md:grid-cols-2">{visible.map((vault) => <article key={vault.name} className="rounded-[14px] border border-border bg-card p-6"><div className="flex justify-between"><span className={cn("vault-icon", `accent-${vault.accent}`)}><vault.icon className="size-5" /></span><Badge accent={vault.accent}>{vault.risk}</Badge></div><h2 className="mt-6 text-lg font-semibold">{vault.name}</h2><p className="mt-2 text-xs text-muted-foreground">{vault.detail}</p><p className="mt-7 font-mono text-3xl">{vault.rate} <span className="text-xs text-muted-foreground">{vault.rateLabel}</span></p><div className="mt-6 flex items-center justify-between border-t border-border pt-5"><span className="text-[10px] text-muted-foreground">{vault.terms}</span><Button size="sm" className="rounded-full" onClick={() => onAction(`Invest in ${vault.name}`)}>Explore <ArrowUpRight /></Button></div></article>)}</div></section>;
 }
 
-function ActiveEarn({ onNotice }: { onNotice: (value: string) => void }) {
+function ActiveEarn({ onAction, earned, done }: { onAction: (value: string) => void; earned: number; done: number }) {
   const tasks = [{ title: "Validate product labels", reward: "$0.38", time: "~3 min", icon: Bot }, { title: "Review AI summary", reward: "$0.45", time: "~4 min", icon: Sparkles }, { title: "Classify satellite tiles", reward: "$0.29", time: "~2 min", icon: Layers3 }];
-  return <section><PageIntro eyebrow="Active Earn" title="Earn in the moments between." copy="Complete verified data tasks and receive direct micro-payouts to your wallet." /><div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div className="space-y-3">{tasks.map(({ title, reward, time, icon: Icon }) => <article key={title} className="flex flex-wrap items-center gap-3 rounded-[14px] border border-border bg-card p-4 sm:flex-nowrap sm:gap-4 sm:p-5"><span className="vault-icon accent-task shrink-0"><Icon className="size-5" /></span><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-[10px] text-muted-foreground">Open queue · {time}</p></div><strong className="font-mono text-success">{reward}</strong><Button size="sm" className="rounded-full" onClick={() => onNotice(`${title} started`)}>Start <ChevronRight /></Button></article>)}</div><div className="rounded-[14px] border border-border bg-card p-6"><Label>Today</Label><p className="mt-3 font-mono text-4xl">$6.82</p><p className="mt-2 text-xs text-success">18 tasks completed</p><div className="mt-8 space-y-3"><ProgressRow label="Daily goal" value="68%" /><ProgressRow label="Accuracy" value="98%" /><ProgressRow label="Approval rate" value="100%" /></div></div></div></section>;
+  return <section><PageIntro eyebrow="Active Earn" title="Earn in the moments between." copy="Zero capital risk · $0.25-$0.45 per verified task · Payout in USDC" /><div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div className="space-y-3">{tasks.map(({ title, reward, time, icon: Icon }) => <article key={title} className="flex flex-wrap items-center gap-3 rounded-[14px] border border-border bg-card p-4 sm:flex-nowrap sm:gap-4 sm:p-5"><span className="vault-icon accent-task shrink-0"><Icon className="size-5" /></span><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-[10px] text-muted-foreground">Open queue · {time}</p></div><strong className="font-mono text-success">{reward}</strong><Button size="sm" className="rounded-full" onClick={() => onAction(`Task|${title}|${reward.slice(1)}`)}>Start task <ChevronRight /></Button></article>)}</div><div className="rounded-[14px] border border-border bg-card p-6"><Label>Today</Label><p className="mt-3 font-mono text-4xl">${earned.toFixed(2)}</p><p className="mt-2 text-xs text-success">{done} tasks completed</p><div className="mt-8 space-y-3"><ProgressRow label="Daily goal" value="68%" /><ProgressRow label="Accuracy" value="98%" /><ProgressRow label="Approval rate" value="100%" /></div></div></div></section>;
 }
 
-function WalletLedger({ onAction, onReceipt, wallet, onConnect }: { onAction: (value: string) => void; onReceipt: (r: Receipt) => void; wallet: string | null; onConnect: () => void }) {
+function WalletLedger({ rows, cash, onAction, onReceipt, wallet, onConnect }: { rows: typeof activity; cash: number; onAction: (value: string) => void; onReceipt: (r: Receipt) => void; wallet: string | null; onConnect: () => void }) {
   return <section><PageIntro eyebrow="Wallet & Ledger" title="Every movement, accounted for." copy="Review balances, yields, and verified portfolio transactions in one place." />
     <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-border bg-card p-5 sm:flex-row sm:items-center">
       <span className="vault-icon accent-cash shrink-0"><WalletCards className="size-5" /></span>
       <div className="min-w-0 flex-1">{wallet ? <><p className="text-sm font-semibold">{wallet} connected</p><p className="mt-1 font-mono text-[11px] text-muted-foreground">{WALLET_ADDRESS} · Base network</p></> : <><p className="text-sm font-semibold">No wallet connected</p><p className="mt-1 text-[11px] text-muted-foreground">Connect a wallet to deposit and receive payouts.</p></>}</div>
       <div className="grid grid-cols-2 gap-2 sm:flex">{wallet ? <><Button className="rounded-full" onClick={() => onAction("Deposit funds")}><Plus />Deposit</Button><Button variant="outline" className="rounded-full" onClick={() => onAction("Withdraw funds")}><ArrowDownToLine />Withdraw</Button></> : <Button className="col-span-2 rounded-full bg-success text-primary-foreground hover:bg-success/90" onClick={onConnect}><WalletCards />Connect Wallet</Button>}</div>
     </div>
-    <div className="grid gap-4 sm:grid-cols-3 sm:gap-5"><WalletStat label="Available cash" value="$1,240.16" icon={<WalletCards />} /><WalletStat label="Pending yield" value="$22.97" icon={<Activity />} /><WalletStat label="Total earned" value="$1,086.42" icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="flex items-center justify-between gap-3 border-b border-border p-5"><div className="min-w-0"><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Tap an entry to view its receipt</p></div><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => onAction("Export ledger")}>Export</Button></div>{activity.concat([{ title: "Portfolio deposit", value: "+$500.00", meta: "Bank transfer • Oct 22 16:42 UTC", accent: "digital" as Accent, icon: ArrowDownToLine }]).map((item) => <button key={item.title} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><span className="font-mono text-xs text-success">{item.value}</span></button>)}</div></section>;
+    <div className="grid gap-4 sm:grid-cols-3 sm:gap-5"><WalletStat label="Available cash" value={`$${cash.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<WalletCards />} /><WalletStat label="Pending yield" value="$22.97" icon={<Activity />} /><WalletStat label="Total earned" value="$1,086.42" icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="flex items-center justify-between gap-3 border-b border-border p-5"><div className="min-w-0"><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Tap an entry to view its receipt</p></div><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => onAction("Export ledger")}>Export</Button></div>{rows.map((item, i) => <button key={item.title + i} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><span className={cn("font-mono text-xs", item.value.startsWith("-") ? "text-muted-foreground" : "text-success")}>{item.value}</span></button>)}</div></section>;
 }
 
-function ActionModal({ title, onClose, onDone }: { title: string; onClose: () => void; onDone: (value: string) => void }) {
-  const [amount, setAmount] = useState("500");
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-overlay p-4" role="dialog" aria-modal="true" aria-label={title}><div className="w-full max-w-md rounded-[14px] border border-border bg-popover p-6 shadow-panel"><div className="flex items-center justify-between"><div><Label>Secure transaction</Label><h2 className="mt-2 text-xl font-semibold">{title}</h2></div><Button variant="ghost" size="icon" onClick={onClose} aria-label="Close"><X /></Button></div><label className="mt-8 block"><span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Amount (USD)</span><div className="mt-2 flex items-center rounded-md border border-input bg-background px-4"><span className="text-muted-foreground">$</span><input autoFocus value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} className="h-12 w-full bg-transparent px-2 font-mono text-lg outline-none" /></div></label><div className="mt-4 flex items-center gap-2 text-[10px] text-muted-foreground"><LockKeyhole className="size-3" /> Preview only — no funds will move</div><div className="mt-8 flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={() => onDone(`${title} preview created for $${amount || "0"}`)}>Continue <ArrowUpRight /></Button></div></div></div>;
-}
-
-function AllocationBar() { return <div className="flex h-2 gap-1 overflow-hidden rounded-full bg-secondary p-0.5"><span className="bar-cash w-[35%] rounded-full"/><span className="bar-cloud w-[40%] rounded-full"/><span className="bar-digital w-[20%] rounded-full"/><span className="bar-task w-[5%] rounded-full"/></div>; }
+function AllocationBar({ alloc }: { alloc: Alloc }) { return <div className="flex h-2 gap-1 overflow-hidden rounded-full bg-secondary p-0.5"><span className="bar-cash rounded-full" style={{ width: `${alloc.Cash}%` }}/><span className="bar-cloud rounded-full" style={{ width: `${alloc.Cloud}%` }}/><span className="bar-digital rounded-full" style={{ width: `${alloc.Digital}%` }}/><span className="bar-task rounded-full" style={{ width: `${alloc.Task}%` }}/></div>; }
 function Label({ children }: { children: ReactNode }) { return <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{children}</span>; }
 function Badge({ children, accent }: { children: ReactNode; accent: Accent }) { return <span className={cn("rounded-full border px-2 py-1 text-[9px]", `badge-${accent}`)}>{children}</span>; }
 function Legend({ accent, label, value }: { accent: Accent; label: string; value: string }) { return <span className="flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-[10px]"><i className={cn("size-2 rounded-full", `bar-${accent}`)} />{label}<b className="font-mono text-muted-foreground">{value}</b></span>; }

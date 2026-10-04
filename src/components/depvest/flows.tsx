@@ -136,7 +136,7 @@ export function TaskDialog({ flow, onClose, onComplete }: { flow: Flow; onClose:
       {!done ? <div className="space-y-4">
         <div className="flex justify-between text-[11px] text-muted-foreground"><span>Item {step + 1} of {items.length}</span><span>{Math.round((step / items.length) * 100)}%</span></div>
         <div className="h-1 overflow-hidden rounded-full bg-secondary"><span className="block h-full bg-success transition-all" style={{ width: `${(step / items.length) * 100}%` }} /></div>
-        <div className="rounded-md border border-border bg-background/40 p-6 text-center"><Sparkles className="mx-auto size-5 text-task" /><p className="mt-3 text-sm font-medium">“{items[step]}”</p><p className="mt-1 text-[11px] text-muted-foreground">Pick the correct category</p></div>
+        <div className="rounded-md border border-border bg-background/40 p-6 text-center"><Sparkles className="mx-auto size-5 text-success" /><p className="mt-3 text-sm font-medium">“{items[step]}”</p><p className="mt-1 text-[11px] text-muted-foreground">Pick the correct category</p></div>
         <div className="grid grid-cols-2 gap-2">{labels.map((l) => <button key={l} onClick={() => setPicked(l)} className={cn("rounded-md border p-3 text-sm", picked === l ? "border-success/50 bg-success/10" : "border-border")}>{l}</button>)}</div>
         <Button className="w-full" disabled={!picked} onClick={() => { setStep(step + 1); setPicked(null); }}>{step === items.length - 1 ? "Submit for verification" : "Next"}</Button>
       </div> : <div className="space-y-4 text-center">
