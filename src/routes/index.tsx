@@ -316,7 +316,7 @@ function MobileNav({ view, onView, onMore, onAction }: { view: View; onView: (v:
     const Icon = item.icon;
     return (
       <button onClick={() => onView(item.label)} aria-label={item.label} aria-current={active ? "page" : undefined} className="group flex h-full flex-1 items-center justify-center px-0.5">
-        <span className={cn("flex h-[52px] w-full max-w-[72px] flex-col items-center justify-center gap-1 rounded-2xl border text-[10px] font-medium transition-all duration-200", active ? "border-success/35 bg-success/15 text-success shadow-glow" : "border-transparent text-muted-foreground group-hover:text-foreground")}>
+        <span className={cn("flex h-[52px] w-full max-w-[72px] flex-col items-center justify-center gap-1 rounded-2xl border text-[10px] font-medium transition-all duration-200", active ? "border-success/35 bg-success/15 text-success shadow-glow" : "border-transparent text-foreground/85 group-hover:bg-secondary/60 group-hover:text-foreground group-active:scale-95")}>
           <Icon className={cn("size-5 transition-transform", active && "scale-110")} />
           <span className={cn(active && "font-semibold")}>{item.short}</span>
         </span>
