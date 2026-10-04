@@ -128,12 +128,7 @@ export function WalletChip({ wallet, onDisconnect, onNotice }: { wallet: string;
 
 /* ---------------- Notifications ---------------- */
 
-const initialNotes = [
-  { id: 1, title: "Daily Treasury yield credited", meta: "+$4.22 · 2h ago", icon: CircleDollarSign, unread: true },
-  { id: 2, title: "Compute epoch payout received", meta: "+$18.40 · Yesterday", icon: Cpu, unread: true },
-  { id: 3, title: "New login from Lagos, NG", meta: "Security · 2 days ago", icon: KeyRound, unread: true },
-  { id: 4, title: "DePIN vaults coming soon", meta: "Product · Last week", icon: Sparkles, unread: false },
-];
+const initialNotes: Array<{ id: number; title: string; meta: string; icon: typeof Bell; unread: boolean }> = [];
 
 export function NotificationsPopover() {
   const [notes, setNotes] = useState(initialNotes);
@@ -152,6 +147,7 @@ export function NotificationsPopover() {
           <button className="text-[11px] text-success disabled:text-muted-foreground" disabled={!unread} onClick={() => setNotes(notes.map((n) => ({ ...n, unread: false })))}>Mark all as read</button>
         </div>
         <div className="max-h-80 overflow-y-auto">
+          {notes.length === 0 && <p className="p-6 text-center text-xs text-muted-foreground">No notifications yet.</p>}
           {notes.map(({ id, title, meta, icon: Icon, unread: u }) => (
             <button key={id} onClick={() => setNotes(notes.map((n) => (n.id === id ? { ...n, unread: false } : n)))} className="flex w-full items-start gap-3 border-b border-border p-4 text-left last:border-0 hover:bg-secondary/40">
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary"><Icon className="size-4 text-muted-foreground" /></span>
@@ -185,11 +181,11 @@ export function ProfileSheet({ open, onOpenChange, wallet, onConnect, onDisconne
           <SheetTitle className="sr-only">Your profile</SheetTitle>
           <SheetDescription className="sr-only">Account details, security and preferences</SheetDescription>
           <div className="flex items-center gap-4">
-            <span className="grid size-14 shrink-0 place-items-center rounded-full border border-border bg-secondary text-lg font-semibold">AK</span>
+            <span className="grid size-14 shrink-0 place-items-center rounded-full border border-border bg-secondary text-lg font-semibold"><Users className="size-5" /></span>
             <div className="min-w-0">
-              <p className="truncate text-lg font-semibold">Alexandre Kim</p>
-              <p className="truncate text-xs text-muted-foreground">alex.kim@depvest.io · Joined Sep 2025</p>
-              <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[10px] text-success"><ShieldCheck className="size-3" />KYC Level 2 verified</span>
+              <p className="truncate text-lg font-semibold">Guest investor</p>
+              <p className="truncate text-xs text-muted-foreground">Not signed in</p>
+              <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[10px] text-success"><ShieldCheck className="size-3" />Not verified</span>
             </div>
           </div>
         </SheetHeader>
@@ -198,10 +194,10 @@ export function ProfileSheet({ open, onOpenChange, wallet, onConnect, onDisconne
           <section className="rounded-md border border-border bg-background/40 p-4">
             <Eyebrow>Account overview</Eyebrow>
             <dl className="mt-3 space-y-2 text-xs">
-              <Row k="Portfolio value" v="$12,450.80" />
-              <Row k="Membership" v="Gold Investor · Tier 2" />
+              
+              <Row k="Membership" v="Standard" />
               <Row k="Fees" v="0% deposit / withdraw" />
-              <Row k="Referral code" v={<button className="inline-flex items-center gap-1 font-mono text-success" onClick={() => onNotice("Referral code copied")}>AK-8492 <Copy className="size-3" /></button>} />
+              <Row k="Referral code" v="—" />
             </dl>
           </section>
 
@@ -209,7 +205,7 @@ export function ProfileSheet({ open, onOpenChange, wallet, onConnect, onDisconne
             <Eyebrow>Security & wallet</Eyebrow>
             <dl className="mt-3 space-y-2 text-xs">
               <Row k="Primary wallet" v={wallet ? <span className="font-mono">{WALLET_ADDRESS}</span> : <button className="text-success" onClick={onConnect}>Connect wallet</button>} />
-              <Row k="Two-factor auth" v={<span className="text-success">Enabled</span>} />
+              <Row k="Two-factor auth" v={<span>Off</span>} />
               <Row k="Custody" v="Regulated custodian" />
             </dl>
           </section>
@@ -276,26 +272,19 @@ export function ReceiptDialog({ receipt, onClose, onNotice }: { receipt: Receipt
 
 /* ---------------- Invite friends ---------------- */
 
-const friends = [
-  { name: "Tunde A.", status: "Depositing", earned: "$48.20" },
-  { name: "Maya R.", status: "Depositing", earned: "$36.10" },
-  { name: "Chen L.", status: "Depositing", earned: "$31.75" },
-  { name: "Sofia P.", status: "Depositing", earned: "$26.45" },
-  { name: "Ifeoma O.", status: "Invited", earned: "—" },
-  { name: "Daniel K.", status: "Invited", earned: "—" },
-];
+const friends: Array<{ name: string; status: string; earned: string }> = [];
 
 export function InviteFriends({ onNotice }: { onNotice: (m: string) => void }) {
   const [showQr, setShowQr] = useState(false);
-  const link = "depvest.io/join/AK-8492";
+  const link = "depvest.io/join";
   return (
     <section>
       <Intro eyebrow="Invite Friends" title="Grow together, earn together." copy="Share your link. When friends deposit, you earn a share of their daily yield — they get a welcome boost too." />
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <Stat icon={<Gift />} label="Rewards earned" value="$142.50" />
-        <Stat icon={<Users />} label="Friends invited" value="6" />
-        <Stat icon={<Check />} label="Active depositors" value="4" />
-        <Stat icon={<Sparkles />} label="Current tier" value="Tier 2 · 10%" />
+        <Stat icon={<Gift />} label="Rewards earned" value="$0.00" />
+        <Stat icon={<Users />} label="Friends invited" value="0" />
+        <Stat icon={<Check />} label="Active depositors" value="0" />
+        <Stat icon={<Sparkles />} label="Current tier" value="—" />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -316,18 +305,18 @@ export function InviteFriends({ onNotice }: { onNotice: (m: string) => void }) {
               <div className="grid size-40 grid-cols-8 gap-0.5 rounded-md bg-foreground p-2">
                 {Array.from({ length: 64 }).map((_, i) => <span key={i} className={cn("rounded-[1px]", (i * 7 + (i % 5) * 3) % 3 === 0 ? "bg-background" : "bg-foreground")} />)}
               </div>
-              <p className="mt-3 font-mono text-[10px] text-muted-foreground">Code AK-8492</p>
+              <p className="mt-3 font-mono text-[10px] text-muted-foreground">DepVest invite</p>
             </div>
           )}
 
           <div className="mt-8">
-            <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">Progress to Tier 3 (15%)</span><span className="font-mono">4 / 10 active</span></div>
-            <div className="mt-2 h-2 rounded-full bg-secondary"><div className="h-full w-[40%] rounded-full bg-primary" /></div>
+            <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">Progress to Tier 3 (15%)</span><span className="font-mono">0 / 10 active</span></div>
+            <div className="mt-2 h-2 rounded-full bg-secondary"><div className="h-full w-0 rounded-full bg-primary" /></div>
             <div className="mt-5 grid grid-cols-3 gap-2 text-center">
               {[["Tier 1", "5%", "1+ friend"], ["Tier 2", "10%", "3+ friends"], ["Tier 3", "15%", "10+ friends"]].map(([t, p, r], i) => (
-                <div key={t} className={cn("rounded-md border p-3", i === 1 ? "border-success/40 bg-success/10" : "border-border bg-background/30")}>
+                <div key={t} className={cn("rounded-md border p-3", false ? "border-success/40 bg-success/10" : "border-border bg-background/30")}>
                   <p className="text-[10px] text-muted-foreground">{t}</p>
-                  <p className={cn("mt-1 font-mono text-lg", i === 1 && "text-success")}>{p}</p>
+                  <p className={cn("mt-1 font-mono text-lg", false && "text-success")}>{p}</p>
                   <p className="mt-1 text-[9px] text-muted-foreground">{r}</p>
                 </div>
               ))}
@@ -337,6 +326,7 @@ export function InviteFriends({ onNotice }: { onNotice: (m: string) => void }) {
 
         <div className="rounded-[14px] border border-border bg-card">
           <div className="border-b border-border p-5"><p className="text-sm font-semibold">Your friends</p><p className="mt-1 text-[10px] text-muted-foreground">Rewards paid daily at 00:00 UTC</p></div>
+          {friends.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No friends invited yet. Share your link to get started.</p>}
           {friends.map((f) => (
             <div key={f.name} className="flex items-center gap-3 border-b border-border px-5 py-3 last:border-0">
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-semibold">{f.name.slice(0, 2).toUpperCase()}</span>
