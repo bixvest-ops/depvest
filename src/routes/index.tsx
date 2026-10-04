@@ -302,7 +302,6 @@ function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNo
             </Button>
           )}
           <NotificationsPopover />
-          <button onClick={onMore} aria-label="Open menu" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-secondary transition-colors hover:border-success/50 lg:hidden"><Menu className="size-4" /></button>
           <button onClick={onProfile} aria-label="Open profile" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-secondary text-xs font-semibold transition-colors hover:border-success/50">AK</button>
         </div>
       </div>
@@ -310,35 +309,21 @@ function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNo
   );
 }
 
-function MobileNav({ view, onView, onMore, onAction }: { view: View; onView: (v: View) => void; onMore: () => void; onAction: () => void }) {
-  const Tab = ({ item }: { item: (typeof navItems)[number] }) => {
-    const active = view === item.label;
-    const Icon = item.icon;
-    return (
-      <button onClick={() => onView(item.label)} aria-label={item.label} aria-current={active ? "page" : undefined} className="group flex h-full flex-1 items-center justify-center px-0.5">
-        <span className={cn("flex h-[52px] w-full max-w-[72px] flex-col items-center justify-center gap-1 rounded-2xl border text-[10px] font-medium transition-all duration-200", active ? "border-success/35 bg-success/15 text-success shadow-glow" : "border-transparent text-foreground/85 group-hover:bg-secondary/60 group-hover:text-foreground group-active:scale-95")}>
-          <Icon className={cn("size-5 transition-transform", active && "scale-110")} />
-          <span className={cn(active && "font-semibold")}>{item.short}</span>
-        </span>
-      </button>
-    );
-  };
+function MobileNav({ view, onView, onMore }: { view: View; onView: (v: View) => void; onMore: () => void; onAction?: () => void }) {
+  const Tab = ({ label, short, Icon, active, onClick }: { label: string; short: string; Icon: typeof Menu; active: boolean; onClick: () => void }) => (
+    <button onClick={onClick} aria-label={label} aria-current={active ? "page" : undefined} className="group flex h-full min-w-0 flex-1 items-center justify-center px-0.5">
+      <span className={cn("flex h-[52px] w-full max-w-[68px] flex-col items-center justify-center gap-1 rounded-2xl border text-[10px] font-medium transition-all duration-200", active ? "border-success/35 bg-success/15 text-success shadow-glow" : "border-transparent text-foreground/85 group-hover:bg-secondary/60 group-hover:text-foreground group-active:scale-95")}>
+        <Icon className={cn("size-5 transition-transform", active && "scale-110")} />
+        <span className={cn("truncate", active && "font-semibold")}>{short}</span>
+      </span>
+    </button>
+  );
+  const moreActive = moreItems.some((m) => m.label === view);
   return (
     <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] z-40 mx-auto w-[calc(100%-1.5rem)] max-w-md lg:hidden">
-      <div className="relative h-[68px] drop-shadow-[0_12px_30px_rgba(0,0,0,0.55)]">
-        <svg viewBox="0 0 400 68" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
-          <path d="M24 0 H148 C162 0 166 6 170 14 C178 32 188 40 200 40 C212 40 222 32 230 14 C234 6 238 0 252 0 H376 A24 24 0 0 1 400 24 V44 A24 24 0 0 1 376 68 H24 A24 24 0 0 1 0 44 V24 A24 24 0 0 1 24 0 Z" className="fill-card stroke-border" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-        </svg>
-        <div className="relative flex h-full items-stretch px-1">
-          <Tab item={navItems[0]!} />
-          <Tab item={navItems[1]!} />
-          <div className="w-[76px] shrink-0" />
-          <Tab item={navItems[2]!} />
-          <Tab item={navItems[3]!} />
-        </div>
-        <button onClick={onAction} aria-label="Quick deposit" className="absolute left-1/2 top-0 grid size-14 -translate-x-1/2 -translate-y-[45%] place-items-center rounded-full bg-success text-background shadow-glow ring-4 ring-background transition-transform active:scale-95 hover:scale-105">
-          <Plus className="size-6" />
-        </button>
+      <div className="flex h-[68px] items-stretch rounded-3xl border border-border bg-card px-1 drop-shadow-[0_12px_30px_rgba(0,0,0,0.55)]">
+        {navItems.map((item) => <Tab key={item.label} label={item.label} short={item.short} Icon={item.icon} active={view === item.label} onClick={() => onView(item.label)} />)}
+        <Tab label="More" short="More" Icon={Menu} active={moreActive} onClick={onMore} />
       </div>
     </nav>
   );
