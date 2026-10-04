@@ -1,6 +1,7 @@
-import { User, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
   Activity,
+  User,
   ArrowDownToLine,
   ArrowUpRight,
   BarChart3,
