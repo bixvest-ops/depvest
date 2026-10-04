@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { User, createFileRoute } from "@tanstack/react-router";
 import {
   Activity,
   ArrowDownToLine,
@@ -302,7 +302,7 @@ function Header({ view, onView, wallet, onConnect, onDisconnect, onProfile, onNo
             </Button>
           )}
           <NotificationsPopover />
-          <button onClick={onProfile} aria-label="Open profile" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-secondary text-xs font-semibold transition-colors hover:border-success/50">AK</button>
+          <button onClick={onProfile} aria-label="Open profile" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-secondary text-xs font-semibold transition-colors hover:border-success/50"><User className="size-4" /></button>
         </div>
       </div>
     </header>
@@ -334,7 +334,7 @@ function NavButton({ item, active, onClick }: { item: (typeof navItems)[number];
   return <button onClick={onClick} className={cn("flex h-8 items-center gap-2 rounded-full px-4 text-xs transition-colors", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}><Icon className="size-3.5" />{item.label}</button>;
 }
 
-function Portfolio({ onAction, onNotice, onView, alloc }: { onAction: (value: string) => void; onNotice: (value: string) => void; onView: (v: View) => void; alloc: Alloc }) {
+function Portfolio({ onAction, onNotice, onView, alloc, total, rows }: { onAction: (value: string) => void; onNotice: (value: string) => void; onView: (v: View) => void; alloc: Alloc; total: number; rows: typeof activity }) {
   return (
     <>
       <PortfolioSummary onAction={onAction} alloc={alloc} total={total} />
