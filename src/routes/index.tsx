@@ -103,7 +103,7 @@ const vaults: Array<{
     rateLabel: "APY",
     risk: "Ultra-Low",
     detail: "Short-term US T-bills & cash reserves in USDC",
-    balance: "$4,357.78",
+    balance: "$0.00",
     allocation: "35%",
     terms: "No lock • Instant liquidity",
     action: "Add Funds",
@@ -117,7 +117,7 @@ const vaults: Array<{
     rateLabel: "APY",
     risk: "Moderate",
     detail: "Contracted enterprise GPU/CPU rental revenues",
-    balance: "$4,980.32",
+    balance: "$0.00",
     allocation: "40%",
     terms: "30D epoch • Auto-renew",
     action: "Top Up Compute",
@@ -131,7 +131,7 @@ const vaults: Array<{
     rateLabel: "APY",
     risk: "Balanced",
     detail: "Staking yields on top blue-chip assets (ETH / SOL)",
-    balance: "$2,490.16",
+    balance: "$0.00",
     allocation: "20%",
     terms: "Flexible • 7D unstake",
     action: "Stake More",
@@ -145,7 +145,7 @@ const vaults: Array<{
     rateLabel: "/ task",
     risk: "Zero Risk",
     detail: "Direct micro-payouts for dataset validation",
-    balance: "$622.54",
+    balance: "$0.00",
     allocation: "5%",
     terms: "No capital • Active work",
     action: "Start Earning",
@@ -155,7 +155,7 @@ const vaults: Array<{
   },
 ];
 
-const activity = [
+const activity: Array<{ title: string; value: string; meta: string; accent: Accent; icon: typeof Zap }> = [
   { title: "Daily Treasury yield credited", value: "+$4.22", meta: "US T-Bill auto-compound • Today 00:03 UTC", accent: "cash" as Accent, icon: CircleDollarSign },
   { title: "AI micro-task verified", value: "+$0.35", meta: "Dataset validation #4821 • Today 09:14 UTC", accent: "task" as Accent, icon: Zap },
   { title: "Cloud compute epoch payout", value: "+$18.40", meta: "GPU Cluster 03 • 30D epoch • Yesterday 22:00 UTC", accent: "cloud" as Accent, icon: Cpu },
@@ -165,9 +165,9 @@ function DepVestApp() {
   const [view, setView] = useState<View>("Portfolio");
   const [notice, setNotice] = useState("");
   const [flow, setFlow] = useState<Flow>(null);
-  const [cash, setCash] = useState(1240.16);
-  const [earned, setEarned] = useState(6.82);
-  const [tasksDone, setTasksDone] = useState(18);
+  const [cash, setCash] = useState(0);
+  const [earned, setEarned] = useState(0);
+  const [tasksDone, setTasksDone] = useState(0);
   const [alloc, setAlloc] = useState<Alloc>({ Cash: 35, Cloud: 40, Digital: 20, Task: 5 });
   const [ledger, setLedger] = useState<typeof activity>([]);
   const [wallet, setWallet] = useState<string | null>(null);
@@ -189,7 +189,7 @@ function DepVestApp() {
   const fmt = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const stamp = () => new Date().toUTCString().slice(5, 22) + " UTC";
   const addEntry = (title: string, value: string, meta: string, accent: Accent, icon: typeof Zap) => setLedger((l) => [{ title, value, meta, accent, icon }, ...l]);
-  const allRows = () => [...ledger, ...activity, { title: "Portfolio deposit", value: "+$500.00", meta: "Bank transfer • Oct 22 16:42 UTC", accent: "digital" as Accent, icon: ArrowDownToLine }];
+  const allRows = () => [...ledger, ...activity];
   const setAction = (a: string) => {
     if (a === "Deposit" || a === "Deposit funds") return setFlow({ kind: "deposit" });
     if (a === "Withdraw funds") return setFlow({ kind: "withdraw" });
@@ -219,10 +219,10 @@ function DepVestApp() {
         onNotice={showNotice}
       />
       <main className="mx-auto w-full max-w-[1440px] px-4 pb-[calc(8rem+env(safe-area-inset-bottom,0px))] pt-6 sm:px-6 sm:pb-[calc(9rem+env(safe-area-inset-bottom,0px))] md:pt-8 lg:px-8 lg:pb-20">
-        {view === "Portfolio" && <Portfolio onAction={setAction} onNotice={showNotice} onView={go} alloc={alloc} />}
+        {view === "Portfolio" && <Portfolio onAction={setAction} onNotice={showNotice} onView={go} alloc={alloc} total={cash} rows={allRows()} />}
         {view === "Invest" && <Invest onAction={setAction} />}
         {view === "Active Earn" && <ActiveEarn onAction={setAction} earned={earned} done={tasksDone} />}
-        {view === "Wallet & Ledger" && <WalletLedger rows={allRows()} cash={cash} onAction={setAction} onReceipt={setReceipt} wallet={wallet} onConnect={() => setConnectOpen(true)} />}
+        {view === "Wallet & Ledger" && <WalletLedger rows={allRows()} cash={cash} earned={earned} onAction={setAction} onReceipt={setReceipt} wallet={wallet} onConnect={() => setConnectOpen(true)} />}
         {view === "Invite Friends" && <InviteFriends onNotice={showNotice} />}
         {view === "How It Works" && <HowItWorks onStart={() => go("Invest")} />}
         {view === "Q&A" && <FAQ onContact={() => showNotice("Support chat opened")} />}
@@ -337,7 +337,7 @@ function NavButton({ item, active, onClick }: { item: (typeof navItems)[number];
 function Portfolio({ onAction, onNotice, onView, alloc }: { onAction: (value: string) => void; onNotice: (value: string) => void; onView: (v: View) => void; alloc: Alloc }) {
   return (
     <>
-      <PortfolioSummary onAction={onAction} alloc={alloc} />
+      <PortfolioSummary onAction={onAction} alloc={alloc} total={total} />
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         {moreItems.map(({ label, icon: Icon, copy }) => (
           <button key={label} onClick={() => onView(label)} className="flex items-center gap-3 rounded-[14px] border border-border bg-card p-4 text-left transition-colors hover:border-success/40">
@@ -349,7 +349,7 @@ function Portfolio({ onAction, onNotice, onView, alloc }: { onAction: (value: st
       </div>
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
-          <SectionLabel title="Asset Vaults" right="4 active · $ 12,450.80 TVL" />
+          <SectionLabel title="Asset Vaults" right={`4 vaults · ${usd(total)} total`} />
           <div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={vault} onAction={onAction} onNotice={onNotice} />)}</div>
           <div className="mt-4 flex items-center gap-3 rounded-md border border-dashed border-border bg-card/40 p-4 text-xs text-muted-foreground">
             <Sparkles className="size-4 shrink-0" /><span className="min-w-0">Add a new vault? Explore private credit & DePIN coming soon.</span>
@@ -357,7 +357,7 @@ function Portfolio({ onAction, onNotice, onView, alloc }: { onAction: (value: st
           </div>
         </section>
         <aside className="space-y-4 lg:sticky lg:top-24">
-          <Performance onAction={onAction} />
+          <Performance onAction={onAction} rows={rows} />
           <div className="flex items-start gap-3 rounded-md border border-border bg-card p-5">
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary"><ShieldCheck className="size-4 text-muted-foreground" /></span>
             <div><p className="text-xs font-medium">Institutional-grade custody</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Cash held in USDC at regulated custodians • Compute contracts insured • Staking via audited validators. No leverage.</p></div>
@@ -368,16 +368,16 @@ function Portfolio({ onAction, onNotice, onView, alloc }: { onAction: (value: st
   );
 }
 
-function PortfolioSummary({ onAction, alloc }: { onAction: (value: string) => void; alloc: Alloc }) {
+function PortfolioSummary({ onAction, alloc, total }: { onAction: (value: string) => void; alloc: Alloc; total: number }) {
   return (
     <section className="overflow-hidden rounded-[18px] border border-border bg-card shadow-panel">
       <div className="grid gap-8 p-6 md:p-8 lg:grid-cols-[1fr_250px]">
         <div>
           <div className="flex flex-wrap items-center gap-3"><Label>Portfolio Value</Label><Badge accent="cash">● Verified on-chain</Badge></div>
-          <div className="mt-2 flex flex-wrap items-baseline gap-4"><h1 className="font-mono text-4xl font-medium md:text-[44px]">$12,450.80</h1><span className="rounded-full border border-success/20 bg-success/10 px-3 py-1 text-xs text-success">↗ ▲ +$318.40 (+2.62%) this month</span></div>
+          <div className="mt-2 flex flex-wrap items-baseline gap-4"><h1 className="font-mono text-4xl font-medium md:text-[44px]">{usd(total)}</h1></div>
           <div className="mt-10 grid items-center gap-8 md:grid-cols-[1fr_auto]">
             <div>
-              <div className="mb-3 flex justify-between"><Label>Asset Allocation</Label><span className="font-mono text-[10px] text-muted-foreground">Rebalanced 2h ago</span></div>
+              <div className="mb-3 flex justify-between"><Label>Asset Allocation</Label><span className="font-mono text-[10px] text-muted-foreground">Target mix</span></div>
               <AllocationBar alloc={alloc} />
               <div className="mt-3 flex flex-wrap gap-2"><Legend accent="cash" label="Cash" value={`${alloc.Cash}%`} /><Legend accent="cloud" label="Cloud" value={`${alloc.Cloud}%`} /><Legend accent="digital" label="Digital" value={`${alloc.Digital}%`} /><Legend accent="task" label="Task" value={`${alloc.Task}%`} /></div>
             </div>
@@ -421,7 +421,7 @@ function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[numbe
   );
 }
 
-function Performance({ onAction }: { onAction: (v: string) => void }) {
+function Performance({ onAction, rows }: { onAction: (v: string) => void; rows: typeof activity }) {
   const [range, setRange] = useState("1M");
   return (
     <section className="rounded-[14px] border border-border bg-card p-5 shadow-card md:p-6">
@@ -436,12 +436,12 @@ function Performance({ onAction }: { onAction: (v: string) => void }) {
         </svg>
       </div>
       <div className="flex justify-between font-mono text-[9px] text-muted-foreground"><span>Oct 24</span><span className="flex gap-4"><i className="text-success">— Actual</i><i>— Projected</i></span><span>Now</span></div>
-      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1"><Metric label="Total Gain" value="+$318.40" note="+2.62% this month" success /><Metric label="APY Weighted" value="7.31%" note="Blended yield" /><Metric label="Projected 1Y" value="$14,420.00" note="+15.8%" success /></div>
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1"><Metric label="Total Gain" value="$0.00" note="No history yet" /><Metric label="APY Weighted" value="7.31%" note="Blended yield" /><Metric label="Projected 1Y" value="$0.00" note="Deposit to start" /></div>
       <button onClick={() => onAction("Calculator")} className="mt-4 flex w-full items-center gap-3 rounded-md border border-success/25 bg-success/10 p-3 text-left"><Sparkles className="size-4 shrink-0 text-success" /><span className="min-w-0 flex-1 text-[11px]"><b className="block font-mono text-[9px] tracking-[0.16em] text-muted-foreground">SIMULATOR</b>$1,000 → $1,073 in 12 months at 7.31% blended</span><span className="shrink-0 text-[11px] text-success">Open calculator</span></button>
       <div className="my-6 border-t border-border" />
-      <SectionLabel title="Recent Activity Feed" right="View all" />
-      <div className="space-y-2">{activity.map((item) => { const Icon = item.icon; return <div key={item.title} className="flex items-center gap-3 rounded-md border border-border bg-background/30 p-3"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><Icon className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-medium">{item.title} <span className="font-mono text-success">{item.value}</span></p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><Check className="size-3 text-muted-foreground" /></div>; })}</div>
-      <div className="mt-5 flex justify-between border-t border-border pt-4 font-mono text-[9px] text-muted-foreground"><span>On-chain audit • tx: 0x9f…e21a</span><span className="text-success">● Live</span></div>
+      <SectionLabel title="Recent Activity Feed" right={`${rows.length} items`} />
+      <div className="space-y-2">{rows.length === 0 && <p className="rounded-md border border-dashed border-border p-4 text-center text-[11px] text-muted-foreground">No activity yet. Your deposits, payouts and tasks will appear here.</p>}{rows.slice(0, 5).map((item, i) => { const Icon = item.icon; return <div key={item.title + i} className="flex items-center gap-3 rounded-md border border-border bg-background/30 p-3"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><Icon className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-medium">{item.title} <span className="font-mono text-success">{item.value}</span></p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><Check className="size-3 text-muted-foreground" /></div>; })}</div>
+      <div className="mt-5 flex justify-between border-t border-border pt-4 font-mono text-[9px] text-muted-foreground"><span>On-chain audit</span><span className="text-success">● Live</span></div>
     </section>
   );
 }
@@ -454,17 +454,17 @@ function Invest({ onAction }: { onAction: (value: string) => void }) {
 
 function ActiveEarn({ onAction, earned, done }: { onAction: (value: string) => void; earned: number; done: number }) {
   const tasks = [{ title: "Validate product labels", reward: "$0.38", time: "~3 min", icon: Bot }, { title: "Review AI summary", reward: "$0.45", time: "~4 min", icon: Sparkles }, { title: "Classify satellite tiles", reward: "$0.29", time: "~2 min", icon: Layers3 }];
-  return <section><PageIntro eyebrow="Active Earn" title="Earn in the moments between." copy="Zero capital risk · $0.25-$0.45 per verified task · Payout in USDC" /><div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div className="space-y-3">{tasks.map(({ title, reward, time, icon: Icon }) => <article key={title} className="flex flex-wrap items-center gap-3 rounded-[14px] border border-border bg-card p-4 sm:flex-nowrap sm:gap-4 sm:p-5"><span className="vault-icon accent-task shrink-0"><Icon className="size-5" /></span><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-[10px] text-muted-foreground">Open queue · {time}</p></div><strong className="font-mono text-success">{reward}</strong><Button size="sm" className="rounded-full" onClick={() => onAction(`Task|${title}|${reward.slice(1)}`)}>Start task <ChevronRight /></Button></article>)}</div><div className="rounded-[14px] border border-border bg-card p-6"><Label>Today</Label><p className="mt-3 font-mono text-4xl">${earned.toFixed(2)}</p><p className="mt-2 text-xs text-success">{done} tasks completed</p><div className="mt-8 space-y-3"><ProgressRow label="Daily goal" value="68%" /><ProgressRow label="Accuracy" value="98%" /><ProgressRow label="Approval rate" value="100%" /></div></div></div></section>;
+  return <section><PageIntro eyebrow="Active Earn" title="Earn in the moments between." copy="Zero capital risk · $0.25-$0.45 per verified task · Payout in USDC" /><div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div className="space-y-3">{tasks.map(({ title, reward, time, icon: Icon }) => <article key={title} className="flex flex-wrap items-center gap-3 rounded-[14px] border border-border bg-card p-4 sm:flex-nowrap sm:gap-4 sm:p-5"><span className="vault-icon accent-task shrink-0"><Icon className="size-5" /></span><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-[10px] text-muted-foreground">Open queue · {time}</p></div><strong className="font-mono text-success">{reward}</strong><Button size="sm" className="rounded-full" onClick={() => onAction(`Task|${title}|${reward.slice(1)}`)}>Start task <ChevronRight /></Button></article>)}</div><div className="rounded-[14px] border border-border bg-card p-6"><Label>Today</Label><p className="mt-3 font-mono text-4xl">${earned.toFixed(2)}</p><p className="mt-2 text-xs text-success">{done} tasks completed</p><div className="mt-8 space-y-3"><ProgressRow label="Daily goal" value={`${Math.min(100, done * 10)}%`} /></div></div></div></section>;
 }
 
-function WalletLedger({ rows, cash, onAction, onReceipt, wallet, onConnect }: { rows: typeof activity; cash: number; onAction: (value: string) => void; onReceipt: (r: Receipt) => void; wallet: string | null; onConnect: () => void }) {
+function WalletLedger({ rows, cash, earned, onAction, onReceipt, wallet, onConnect }: { rows: typeof activity; cash: number; earned: number; onAction: (value: string) => void; onReceipt: (r: Receipt) => void; wallet: string | null; onConnect: () => void }) {
   return <section><PageIntro eyebrow="Wallet & Ledger" title="Every movement, accounted for." copy="Review balances, yields, and verified portfolio transactions in one place." />
     <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-border bg-card p-5 sm:flex-row sm:items-center">
       <span className="vault-icon accent-cash shrink-0"><WalletCards className="size-5" /></span>
       <div className="min-w-0 flex-1">{wallet ? <><p className="text-sm font-semibold">{wallet} connected</p><p className="mt-1 font-mono text-[11px] text-muted-foreground">{WALLET_ADDRESS} · Base network</p></> : <><p className="text-sm font-semibold">No wallet connected</p><p className="mt-1 text-[11px] text-muted-foreground">Connect a wallet to deposit and receive payouts.</p></>}</div>
       <div className="grid grid-cols-2 gap-2 sm:flex">{wallet ? <><Button className="rounded-full" onClick={() => onAction("Deposit funds")}><Plus />Deposit</Button><Button variant="outline" className="rounded-full" onClick={() => onAction("Withdraw funds")}><ArrowDownToLine />Withdraw</Button></> : <Button className="col-span-2 rounded-full bg-success text-primary-foreground hover:bg-success/90" onClick={onConnect}><WalletCards />Connect Wallet</Button>}</div>
     </div>
-    <div className="grid gap-4 sm:grid-cols-3 sm:gap-5"><WalletStat label="Available cash" value={`$${cash.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<WalletCards />} /><WalletStat label="Pending yield" value="$22.97" icon={<Activity />} /><WalletStat label="Total earned" value="$1,086.42" icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="flex items-center justify-between gap-3 border-b border-border p-5"><div className="min-w-0"><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Tap an entry to view its receipt</p></div><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => onAction("Export ledger")}>Export</Button></div>{rows.map((item, i) => <button key={item.title + i} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><span className={cn("font-mono text-xs", item.value.startsWith("-") ? "text-muted-foreground" : "text-success")}>{item.value}</span></button>)}</div></section>;
+    <div className="grid gap-4 sm:grid-cols-3 sm:gap-5"><WalletStat label="Available cash" value={`$${cash.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<WalletCards />} /><WalletStat label="Pending yield" value="$0.00" icon={<Activity />} /><WalletStat label="Total earned" value={`$${earned.toFixed(2)}`} icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="flex items-center justify-between gap-3 border-b border-border p-5"><div className="min-w-0"><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Tap an entry to view its receipt</p></div><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => onAction("Export ledger")}>Export</Button></div>{rows.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions yet. Make a deposit to get started.</p>}{rows.map((item, i) => <button key={item.title + i} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><span className={cn("font-mono text-xs", item.value.startsWith("-") ? "text-muted-foreground" : "text-success")}>{item.value}</span></button>)}</div></section>;
 }
 
 function AllocationBar({ alloc }: { alloc: Alloc }) { return <div className="flex h-2 gap-1 overflow-hidden rounded-full bg-secondary p-0.5"><span className="bar-cash rounded-full" style={{ width: `${alloc.Cash}%` }}/><span className="bar-cloud rounded-full" style={{ width: `${alloc.Cloud}%` }}/><span className="bar-digital rounded-full" style={{ width: `${alloc.Digital}%` }}/><span className="bar-task rounded-full" style={{ width: `${alloc.Task}%` }}/></div>; }
@@ -476,3 +476,4 @@ function Metric({ label, value, note, success }: { label: string; value: string;
 function PageIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) { return <div className="mb-8 max-w-2xl md:mb-10"><Label>{eyebrow}</Label><h1 className="mt-4 text-3xl font-semibold sm:text-4xl md:text-[44px]">{title}</h1><p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">{copy}</p></div>; }
 function ProgressRow({ label, value }: { label: string; value: string }) { return <div><div className="flex justify-between text-xs"><span className="text-muted-foreground">{label}</span><span className="font-mono">{value}</span></div><div className="mt-2 h-1.5 rounded-full bg-secondary"><div className="h-full rounded-full bg-primary" style={{ width: value }} /></div></div>; }
 function WalletStat({ label, value, icon }: { label: string; value: string; icon: ReactNode }) { return <div className="rounded-[14px] border border-border bg-card p-6"><span className="vault-icon accent-cash">{icon}</span><p className="mt-6 text-xs text-muted-foreground">{label}</p><p className="mt-2 font-mono text-2xl">{value}</p></div>; }
+const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
