@@ -324,7 +324,7 @@ function MobileNav({ view, onView, onMore, onAction }: { view: View; onView: (v:
     );
   };
   return (
-    <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 mx-auto w-[calc(100%-1.5rem)] max-w-md lg:hidden">
+    <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] z-40 mx-auto w-[calc(100%-1.5rem)] max-w-md lg:hidden">
       <div className="relative h-[68px] drop-shadow-[0_12px_30px_rgba(0,0,0,0.55)]">
         <svg viewBox="0 0 400 68" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
           <path d="M24 0 H148 C162 0 166 6 170 14 C178 32 188 40 200 40 C212 40 222 32 230 14 C234 6 238 0 252 0 H376 A24 24 0 0 1 400 24 V44 A24 24 0 0 1 376 68 H24 A24 24 0 0 1 0 44 V24 A24 24 0 0 1 24 0 Z" className="fill-card stroke-border" strokeWidth="1" vectorEffect="non-scaling-stroke" />
