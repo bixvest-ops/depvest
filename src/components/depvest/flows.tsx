@@ -87,7 +87,7 @@ export function RebalanceDialog({ open, alloc, onClose, onSave }: { open: boolea
         <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-secondary">{(Object.keys(draft) as (keyof Alloc)[]).map((k) => <span key={k} className={colors[k]} style={{ width: `${draft[k]}%` }} />)}</div>
         {(Object.keys(draft) as (keyof Alloc)[]).map((k) => (
           <div key={k}><div className="mb-2 flex justify-between text-xs"><span className="flex items-center gap-2"><i className={cn("size-2 rounded-full", colors[k])} />{k}</span><b className="font-mono">{draft[k]}%</b></div>
-            <Slider aria-label={`${k} allocation`} value={[draft[k]]} max={100} step={1} onValueChange={([v]) => setDraft({ ...draft, [k]: v })} /></div>
+            <Slider aria-label={`${k} allocation`} value={[draft[k]]} max={100} step={1} onValueChange={([v]) => setDraft({ ...draft, [k]: v ?? 0 })} /></div>
         ))}
         <div className={cn("flex items-center justify-between rounded-md border p-3 text-sm", total === 100 ? "border-success/40 bg-success/10 text-success" : "border-destructive/40 bg-destructive/10 text-destructive")}>
           <span>Total</span><b className="font-mono">{total}%{total !== 100 && ` (${total > 100 ? "-" : "+"}${Math.abs(100 - total)}% needed)`}</b>
@@ -109,7 +109,7 @@ export function CalculatorDialog({ open, alloc, onClose, onInvest }: { open: boo
   return (
     <Shell open={open} onClose={onClose} eyebrow="Simulator" title="Yield calculator" desc={`Based on your current mix at ${blended.toFixed(2)}% blended APY.`}>
       <div className="space-y-5">
-        <div><div className="flex items-baseline justify-between"><Cap>Starting amount</Cap><b className="font-mono text-2xl">{money(amt)}</b></div><Slider className="mt-3" aria-label="Amount" value={[amt]} min={500} max={50000} step={500} onValueChange={([v]) => setAmt(v)} />
+        <div><div className="flex items-baseline justify-between"><Cap>Starting amount</Cap><b className="font-mono text-2xl">{money(amt)}</b></div><Slider className="mt-3" aria-label="Amount" value={[amt]} min={500} max={50000} step={500} onValueChange={([v]) => setAmt(v ?? 500)} />
           <div className="mt-2 flex gap-2">{[1000, 5000, 10000, 25000].map((p) => <button key={p} onClick={() => setAmt(p)} className={cn("rounded-full px-3 py-1 font-mono text-[10px]", amt === p ? "bg-foreground text-background" : "bg-secondary")}>{money(p).replace(".00", "")}</button>)}</div></div>
         <div className="grid grid-cols-3 gap-2">{[["Daily", amt * blended / 100 / 365], ["Monthly", at(1 / 12) - amt], ["Yearly", at(1) - amt]].map(([l, v]) => <div key={l as string} className="rounded-md border border-border bg-secondary/50 p-3"><Cap>{l}</Cap><p className="mt-2 font-mono text-sm text-success">+{money(v as number)}</p></div>)}</div>
         <div className="rounded-md border border-success/25 bg-success/10 p-4 text-sm"><p>{money(amt)} → <b className="font-mono">{money(at(1))}</b> in 12 months</p><p className="mt-1 text-xs text-muted-foreground">3 years with auto-compound: <b className="font-mono text-foreground">{money(at(3))}</b></p></div>

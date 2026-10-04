@@ -198,11 +198,11 @@ function DepVestApp() {
     if (a === "Waitlist") return showNotice("Waitlist joined — DePIN vaults coming soon");
     if (a === "Quick Earn") { showNotice("Quick Earn queue opened"); return go("Active Earn"); }
     if (a === "Export ledger") { exportLedgerCsv(allRows()); return showNotice("Ledger exported as CSV"); }
-    if (a.startsWith("Task|")) { const [, title, reward] = a.split("|"); return setFlow({ kind: "task", title, reward: Number(reward) }); }
+    if (a.startsWith("Task|")) { const [, title, reward] = a.split("|"); return setFlow({ kind: "task", title: title ?? "Task", reward: Number(reward) }); }
     if (a.startsWith("Invest in ")) return setFlow({ kind: "vault", name: a.slice(10) });
     if (a.startsWith("Start Earning")) return go("Active Earn");
     const name = a.split(": ")[1];
-    setFlow({ kind: "deposit", vault: name });
+    setFlow(name ? { kind: "deposit", vault: name } : { kind: "deposit" });
   };
   const disconnect = () => { setWallet(null); setProfileOpen(false); showNotice("Wallet disconnected"); };
 
@@ -329,11 +329,11 @@ function MobileNav({ view, onView, onMore, onAction }: { view: View; onView: (v:
           <path d="M24 0 H148 C162 0 166 6 170 14 C178 32 188 40 200 40 C212 40 222 32 230 14 C234 6 238 0 252 0 H376 A24 24 0 0 1 400 24 V44 A24 24 0 0 1 376 68 H24 A24 24 0 0 1 0 44 V24 A24 24 0 0 1 24 0 Z" className="fill-card stroke-border" strokeWidth="1" vectorEffect="non-scaling-stroke" />
         </svg>
         <div className="relative flex h-full items-stretch px-1">
-          <Tab item={navItems[0]} />
-          <Tab item={navItems[1]} />
+          <Tab item={navItems[0]!} />
+          <Tab item={navItems[1]!} />
           <div className="w-[76px] shrink-0" />
-          <Tab item={navItems[2]} />
-          <Tab item={navItems[3]} />
+          <Tab item={navItems[2]!} />
+          <Tab item={navItems[3]!} />
         </div>
         <button onClick={onAction} aria-label="Quick deposit" className="absolute left-1/2 top-0 grid size-14 -translate-x-1/2 -translate-y-[45%] place-items-center rounded-full bg-success text-background shadow-glow ring-4 ring-background transition-transform active:scale-95 hover:scale-105">
           <Plus className="size-6" />
