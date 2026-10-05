@@ -18,5 +18,7 @@
 - [x] Vault details window, DePIN waitlist, CSV ledger export
 - [x] Empty allocation + Pending yield empty state; rates/fees/rewards/FAQ unconfigured until verified
 - [x] About, Rules, Support (multi-channel), rewritten How It Works & Q&A
-- [x] Admin terms upload with AI extraction + review/apply
-- [ ] Wallet ledger date/type filters (not started — credits ran out)
+- [x] Admin page removed (not authorized)
+- [x] Wallet ledger type filters + search
+- [x] First-deposit welcome card on Portfolio
+- [ ] Ledger date range, pending states, rebalance confirmation, AI risk advisor
