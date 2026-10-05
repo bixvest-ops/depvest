@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import {
   AlertTriangle, ArrowDownToLine, BookOpen, Building2, Check, Clock, FileText, HelpCircle, LifeBuoy, Mail,
   MessageCircle, MessagesSquare, Scale, Search, Send, ShieldCheck, Sparkles, Upload, WalletCards, Zap,
@@ -8,7 +7,6 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { extractProductTerms } from "@/lib/terms.functions";
 import { pct, rewardRange, UNCONFIGURED, type Terms } from "./terms";
 
 const Eyebrow = ({ children }: { children: ReactNode }) => <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{children}</span>;
@@ -138,59 +136,3 @@ export function Support({ onNotice, onFaq }: { onNotice: (m: string) => void; on
 }
 
 /* ---------------- Admin: terms ingestion ---------------- */
-type Draft = Omit<Terms, "verifiedAt"> & { notes: string[] };
-export function AdminTerms({ terms, onApply, onNotice }: { terms: Terms; onApply: (t: Terms) => void; onNotice: (m: string) => void }) {
-  const extract = useServerFn(extractProductTerms);
-  const [doc, setDoc] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const onFile = async (f?: File) => {
-    if (!f) return;
-    if (f.size > 500_000) return setError("File is too large. Please use a text file under 500 KB.");
-    setDoc((await f.text()).slice(0, 60000)); setError("");
-  };
-  const run = async () => {
-    setBusy(true); setError(""); setDraft(null);
-    try {
-      const r = await extract({ data: { document: doc } });
-      if (r.ok) setDraft(r.terms); else setError(r.error);
-    } catch { setError("Please paste at least a few sentences of the terms (max 60,000 characters)."); }
-    finally { setBusy(false); }
-  };
-  const setNum = (k: keyof Terms["apy"], v: string) => draft && setDraft({ ...draft, apy: { ...draft.apy, [k]: v === "" ? null : Number(v) } });
-  const setFee = (k: keyof Terms["fees"], v: string) => draft && setDraft({ ...draft, fees: { ...draft.fees, [k]: v.trim() ? v : null } });
-  const input = "h-10 w-full rounded-md border border-input bg-background px-3 font-mono text-xs outline-none";
-  return (
-    <section>
-      <Intro eyebrow="Admin · Product terms" title="Upload official terms for review." copy="Paste or upload the official product terms. AI extracts rates, fees, rewards and FAQ answers as a draft — nothing goes live until you review and apply it." />
-      <div className="mb-4 flex items-start gap-2 rounded-md border border-dashed border-border p-3 text-[11px] text-muted-foreground"><AlertTriangle className="size-3.5 shrink-0" />Preview: this admin page isn't protected by a sign-in, and applied values reset on refresh.</div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Terms document</h2><label className="flex cursor-pointer items-center gap-1 text-xs text-success"><Upload className="size-3.5" />Upload .txt / .md<input type="file" accept=".txt,.md,.csv,.json,text/plain" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} /></label></div>
-          <textarea value={doc} onChange={(e) => setDoc(e.target.value.slice(0, 60000))} placeholder="Paste official product terms here…" className="mt-3 h-72 w-full resize-y rounded-md border border-input bg-background p-3 text-xs outline-none" />
-          <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground"><span>{doc.length.toLocaleString()} / 60,000</span>{terms.verifiedAt && <span className="text-success">Live terms applied {terms.verifiedAt}</span>}</div>
-          {error && <p className="mt-3 text-[11px] text-destructive">{error}</p>}
-          <Button className="mt-4 w-full rounded-full" disabled={busy || doc.trim().length < 40} onClick={run}><Sparkles />{busy ? "Reading document…" : "Extract with AI"}</Button>
-        </Card>
-        <Card>
-          <h2 className="text-sm font-semibold">Review draft</h2>
-          {!draft ? <p className="mt-6 rounded-md border border-dashed border-border p-8 text-center text-xs text-muted-foreground">Extracted values will appear here for review.</p> : (
-            <div className="mt-4 space-y-5">
-              {draft.notes.length > 0 && <ul className="space-y-1 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-[11px]">{draft.notes.map((n) => <li key={n} className="flex gap-2"><AlertTriangle className="mt-0.5 size-3 shrink-0" />{n}</li>)}</ul>}
-              <div><Eyebrow>Vault APY (%) — blank = unconfigured</Eyebrow><div className="mt-2 grid grid-cols-3 gap-2">{(["Cash", "Cloud", "Digital"] as const).map((k) => <label key={k} className="text-[10px] text-muted-foreground">{k}<input type="number" step="0.01" value={draft.apy[k] ?? ""} onChange={(e) => setNum(k, e.target.value)} className={input} /></label>)}</div></div>
-              <div><Eyebrow>Task reward (USD)</Eyebrow><div className="mt-2 grid grid-cols-2 gap-2">{(["min", "max"] as const).map((k) => <label key={k} className="text-[10px] text-muted-foreground">{k}<input type="number" step="0.01" value={draft.taskReward?.[k] ?? ""} onChange={(e) => { const v = e.target.value === "" ? NaN : Number(e.target.value); const cur = draft.taskReward ?? { min: NaN, max: NaN }; const next = { ...cur, [k]: v }; setDraft({ ...draft, taskReward: Number.isNaN(next.min) && Number.isNaN(next.max) ? null : next }); }} className={input} /></label>)}</div></div>
-              <div><Eyebrow>Fees</Eyebrow><div className="mt-2 grid gap-2 sm:grid-cols-2">{(["deposit", "withdrawal", "performance", "rebalance"] as const).map((k) => <label key={k} className="text-[10px] capitalize text-muted-foreground">{k}<input value={draft.fees[k] ?? ""} onChange={(e) => setFee(k, e.target.value)} className={input} /></label>)}</div></div>
-              <div><Eyebrow>FAQ answers ({draft.faqs.length})</Eyebrow><div className="mt-2 max-h-56 space-y-2 overflow-y-auto">{draft.faqs.map((f, i) => <div key={i} className="rounded-md border border-border bg-background/40 p-3 text-xs"><div className="flex justify-between gap-2"><b>{f.q}</b><button className="text-[10px] text-destructive" onClick={() => setDraft({ ...draft, faqs: draft.faqs.filter((_, j) => j !== i) })}>Remove</button></div><p className="mt-1 text-muted-foreground">{f.a}</p></div>)}{draft.faqs.length === 0 && <p className="text-[11px] text-muted-foreground">No FAQ answers found.</p>}</div></div>
-              <Button className="w-full rounded-full bg-success text-primary-foreground hover:bg-success/90" onClick={() => {
-                const tr = draft.taskReward && Number.isFinite(draft.taskReward.min) && Number.isFinite(draft.taskReward.max) ? draft.taskReward : null;
-                onApply({ apy: draft.apy, taskReward: tr, fees: draft.fees, faqs: draft.faqs, verifiedAt: new Date().toUTCString().slice(5, 22) + " UTC" });
-                onNotice("Verified terms applied across the app");
-              }}><Check />Approve & apply</Button>
-            </div>
-          )}
-        </Card>
-      </div>
-    </section>
-  );
-}
