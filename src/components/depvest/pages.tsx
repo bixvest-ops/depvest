@@ -134,5 +134,3 @@ export function Support({ onNotice, onFaq }: { onNotice: (m: string) => void; on
     </section>
   );
 }
-
-/* ---------------- Admin: terms ingestion ---------------- */
