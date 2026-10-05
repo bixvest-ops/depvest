@@ -42,7 +42,7 @@ import {
   type Receipt,
 } from "@/components/depvest/extras";
 import { CalculatorDialog, exportLedgerCsv, RebalanceDialog, TaskDialog, TransferDialog, VaultDetailDialog, type Alloc, type Flow } from "@/components/depvest/flows";
-import { About, AdminTerms, FAQ, HowItWorks, Rules, Support } from "@/components/depvest/pages";
+import { About, FAQ, HowItWorks, Rules, Support } from "@/components/depvest/pages";
 import { EMPTY_TERMS, pct, rewardRange, type Terms } from "@/components/depvest/terms";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -68,7 +68,7 @@ export const Route = createFileRoute("/")({
   component: DepVestApp,
 });
 
-type View = "Portfolio" | "Invest" | "Active Earn" | "Wallet & Ledger" | "Invite Friends" | "How It Works" | "Q&A" | "About" | "Rules" | "Support" | "Admin";
+type View = "Portfolio" | "Invest" | "Active Earn" | "Wallet & Ledger" | "Invite Friends" | "How It Works" | "Q&A" | "About" | "Rules" | "Support";
 type Accent = "cash" | "cloud" | "digital" | "task";
 
 const navItems: Array<{ label: View; icon: typeof BarChart3; short: string }> = [
@@ -85,7 +85,6 @@ const moreItems: Array<{ label: View; icon: typeof BarChart3; copy: string }> = 
   { label: "About", icon: Layers3, copy: "What DepVest is and how it works" },
   { label: "Rules", icon: ShieldCheck, copy: "Policies, fees and risk disclosure" },
   { label: "Support", icon: LockKeyhole, copy: "Live chat, email, Telegram, Discord" },
-  { label: "Admin", icon: Database, copy: "Upload official product terms" },
 ];
 
 const vaults: Array<{
@@ -231,7 +230,6 @@ function DepVestApp() {
         {view === "About" && <About />}
         {view === "Rules" && <Rules terms={terms} />}
         {view === "Support" && <Support onNotice={showNotice} onFaq={() => go("Q&A")} />}
-        {view === "Admin" && <AdminTerms terms={terms} onApply={setTerms} onNotice={showNotice} />}
       </main>
       <MobileNav view={view} onView={go} onMore={() => setMoreOpen(true)} onAction={() => setAction("Deposit")} />
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
@@ -344,15 +342,7 @@ function Portfolio({ terms, onAction, onNotice, onView, alloc, total, rows }: { 
   return (
     <>
       <PortfolioSummary onAction={onAction} alloc={alloc} total={total} />
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        {moreItems.map(({ label, icon: Icon, copy }) => (
-          <button key={label} onClick={() => onView(label)} className="flex items-center gap-3 rounded-[14px] border border-border bg-card p-4 text-left transition-colors hover:border-success/40">
-            <span className="vault-icon accent-cash shrink-0"><Icon className="size-4" /></span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{label}</span><span className="block truncate text-[11px] text-muted-foreground">{copy}</span></span>
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-          </button>
-        ))}
-      </div>
+      {total === 0 && <div className="mt-4 flex flex-col gap-4 rounded-[14px] border border-success/30 bg-success/10 p-5 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">Welcome to DepVest</p><p className="mt-1 text-xs text-muted-foreground">You haven't funded your account yet. Choose a vault below to make your first secure deposit.</p></div><Button className="shrink-0 rounded-full" onClick={() => onAction("Deposit")}>Make first deposit<ChevronRight /></Button></div>}
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
           <SectionLabel title="Asset Vaults" right={`4 vaults · ${usd(total)} total`} />
@@ -471,7 +461,16 @@ function WalletLedger({ rows, cash, earned, onAction, onReceipt, wallet, onConne
       <div className="min-w-0 flex-1">{wallet ? <><p className="text-sm font-semibold">{wallet} connected</p><p className="mt-1 font-mono text-[11px] text-muted-foreground">{WALLET_ADDRESS} · Base network</p></> : <><p className="text-sm font-semibold">No wallet connected</p><p className="mt-1 text-[11px] text-muted-foreground">Connect a wallet to deposit and receive payouts.</p></>}</div>
       <div className="grid grid-cols-2 gap-2 sm:flex">{wallet ? <><Button className="rounded-full" onClick={() => onAction("Deposit funds")}><Plus />Deposit</Button><Button variant="outline" className="rounded-full" onClick={() => onAction("Withdraw funds")}><ArrowDownToLine />Withdraw</Button></> : <Button className="col-span-2 rounded-full bg-success text-primary-foreground hover:bg-success/90" onClick={onConnect}><WalletCards />Connect Wallet</Button>}</div>
     </div>
-    <div className="grid gap-4 sm:grid-cols-3 sm:gap-5"><WalletStat label="Available cash" value={`$${cash.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<WalletCards />} /><WalletStat label="Pending yield" value="—" note="Accrues once funds are allocated to a vault with a verified rate" icon={<Activity />} /><WalletStat label="Total earned" value={`$${earned.toFixed(2)}`} icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="flex items-center justify-between gap-3 border-b border-border p-5"><div className="min-w-0"><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Tap an entry to view its receipt</p></div><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => onAction("Export ledger")}>Export</Button></div>{rows.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions yet. Make a deposit to get started.</p>}{rows.map((item, i) => <button key={item.title + i} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><span className={cn("font-mono text-xs", item.value.startsWith("-") ? "text-muted-foreground" : "text-success")}>{item.value}</span></button>)}</div></section>;
+    <div className="grid gap-4 sm:grid-cols-3 sm:gap-5"><WalletStat label="Available cash" value={`$${cash.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<WalletCards />} /><WalletStat label="Pending yield" value="—" note="Accrues once funds are allocated to a vault with a verified rate" icon={<Activity />} /><WalletStat label="Total earned" value={`$${earned.toFixed(2)}`} icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="flex items-center justify-between gap-3 border-b border-border p-5"><div className="min-w-0"><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Tap an entry to view its receipt</p></div><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => onAction("Export ledger")}>Export</Button></div><LedgerFilters rows={rows} onReceipt={onReceipt} /></div></section>;
+}
+
+const LEDGER_TYPES = ["All", "Deposits", "Withdrawals", "Tasks", "Rebalances"] as const;
+const typeOf = (t: string) => /deposit/i.test(t) ? "Deposits" : /withdraw/i.test(t) ? "Withdrawals" : /task|payout/i.test(t) ? "Tasks" : /rebalanc/i.test(t) ? "Rebalances" : "Other";
+function LedgerFilters({ rows, onReceipt }: { rows: typeof activity; onReceipt: (r: Receipt) => void }) {
+  const [type, setType] = useState<(typeof LEDGER_TYPES)[number]>("All");
+  const [q, setQ] = useState("");
+  const list = rows.filter((r) => (type === "All" || typeOf(r.title) === type) && (r.title + " " + r.meta + " " + r.value).toLowerCase().includes(q.trim().toLowerCase()));
+  return <>{rows.length > 0 && <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center"><div className="flex flex-wrap gap-1.5">{LEDGER_TYPES.map((t) => <button key={t} onClick={() => setType(t)} className={cn("rounded-full px-3 py-1 text-[10px]", type === t ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>{t}</button>)}</div><input value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} placeholder="Search description, network, amount…" className="h-9 w-full rounded-full border border-input bg-background px-4 text-xs outline-none sm:ml-auto sm:w-64" /></div>}{rows.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions yet. Make a deposit to get started.</p>}{rows.length > 0 && list.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions match these filters.</p>}{list.map((item, i) => <button key={item.title + i} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><span className={cn("font-mono text-xs", item.value.startsWith("-") ? "text-muted-foreground" : "text-success")}>{item.value}</span></button>)}</div></section>;
 }
 
 function AllocationBar({ alloc }: { alloc: Alloc }) { return <div className="flex h-2 gap-1 overflow-hidden rounded-full bg-secondary p-0.5"><span className="bar-cash rounded-full" style={{ width: `${alloc.Cash}%` }}/><span className="bar-cloud rounded-full" style={{ width: `${alloc.Cloud}%` }}/><span className="bar-digital rounded-full" style={{ width: `${alloc.Digital}%` }}/><span className="bar-task rounded-full" style={{ width: `${alloc.Task}%` }}/></div>; }

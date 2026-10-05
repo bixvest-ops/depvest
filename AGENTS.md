@@ -11,4 +11,4 @@
 
 ## Architecture
 
-- Keep DepVest as a UI-only single-route dashboard with local React state; no persistence; the only server call is the AI terms-extraction server function (src/lib/terms.functions.ts).
+- Keep DepVest as a UI-only single-route dashboard with local React state; no persistence; no server calls are wired into the UI.
