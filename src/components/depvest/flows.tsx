@@ -77,24 +77,44 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
 
 /* ---------------- Rebalance ---------------- */
 export type Alloc = Record<"Cash" | "Cloud" | "Digital" | "Task", number>;
-export function RebalanceDialog({ open, alloc, rebalanceFee, onClose, onSave }: { open: boolean; alloc: Alloc; rebalanceFee?: string | null; onClose: () => void; onSave: (a: Alloc) => void }) {
+export function RebalanceDialog({ open, alloc, initial, total: balance = 0, rebalanceFee, onClose, onSave }: { open: boolean; alloc: Alloc; initial?: Alloc | null; total?: number; rebalanceFee?: string | null; onClose: () => void; onSave: (a: Alloc) => void }) {
   const [draft, setDraft] = useState(alloc);
-  useEffect(() => { if (open) setDraft(alloc); }, [open, alloc]);
+  const [review, setReview] = useState(false);
+  useEffect(() => { if (open) { setDraft(initial ?? alloc); setReview(false); } }, [open, alloc, initial]);
   const total = Object.values(draft).reduce((a, b) => a + b, 0);
   const colors: Record<keyof Alloc, string> = { Cash: "bar-cash", Cloud: "bar-cloud", Digital: "bar-digital", Task: "bar-task" };
+  const keys = Object.keys(draft) as (keyof Alloc)[];
+  const volatile = draft.Cloud + draft.Digital;
+  const risky = draft.Cloud > 50 || volatile > 50;
+  const Bar = ({ a }: { a: Alloc }) => <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-secondary">{keys.map((k) => <span key={k} className={colors[k]} style={{ width: `${a[k]}%` }} />)}</div>;
+  const Warning = () => risky ? <div role="alert" className="flex gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-[11px] text-warning"><ShieldCheck className="size-4 shrink-0" /><span><b>Concentration risk:</b> {volatile}% is in higher-volatility vaults (AI Cloud Compute + Digital Assets). Consider keeping this under 50%.</span></div> : null;
+  if (review) return (
+    <Shell open={open} onClose={onClose} eyebrow="Confirm rebalance" title="Review your new mix" desc="Compare your current and proposed allocation before confirming.">
+      <div className="space-y-5">
+        <div><p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Current</p><Bar a={alloc} /></div>
+        <div><p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Proposed</p><Bar a={draft} /></div>
+        <div className="divide-y divide-border rounded-md border border-border text-xs">
+          {keys.map((k) => { const d = draft[k] - alloc[k]; return <div key={k} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 p-3"><span className="flex items-center gap-2"><i className={cn("size-2 rounded-full", colors[k])} />{k}</span><span className="font-mono text-muted-foreground">{alloc[k]}%</span><span className="font-mono">→ {draft[k]}%</span><span className={cn("w-20 text-right font-mono", d > 0 ? "text-success" : d < 0 ? "text-destructive" : "text-muted-foreground")}>{d > 0 ? "+" : ""}{balance > 0 ? `$${((d / 100) * balance).toFixed(2)}` : `${d}%`}</span></div>; })}
+        </div>
+        <Warning />
+        <p className="text-[10px] text-muted-foreground">Rebalance fee: {rebalanceFee ?? "Unconfigured"}</p>
+        <div className="flex justify-between gap-2"><Button variant="ghost" onClick={() => setReview(false)}>Back</Button><Button onClick={() => onSave(draft)}><Check />Confirm & rebalance</Button></div>
+      </div>
+    </Shell>
+  );
   return (
     <Shell open={open} onClose={onClose} eyebrow="Rebalance portfolio" title="Set your target mix" desc="Drag sliders — total must equal 100%.">
       <div className="space-y-5">
-        <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-secondary">{(Object.keys(draft) as (keyof Alloc)[]).map((k) => <span key={k} className={colors[k]} style={{ width: `${draft[k]}%` }} />)}</div>
-        {(Object.keys(draft) as (keyof Alloc)[]).map((k) => (
+        <Bar a={draft} />
+        {keys.map((k) => (
           <div key={k}><div className="mb-2 flex justify-between text-xs"><span className="flex items-center gap-2"><i className={cn("size-2 rounded-full", colors[k])} />{k}</span><b className="font-mono">{draft[k]}%</b></div>
             <Slider aria-label={`${k} allocation`} value={[draft[k]]} max={100} step={1} onValueChange={([v]) => setDraft({ ...draft, [k]: v ?? 0 })} /></div>
         ))}
         <div className={cn("flex items-center justify-between rounded-md border p-3 text-sm", total === 100 ? "border-success/40 bg-success/10 text-success" : "border-destructive/40 bg-destructive/10 text-destructive")}>
           <span>Total</span><b className="font-mono">{total}%{total !== 100 && ` (${total > 100 ? "-" : "+"}${Math.abs(100 - total)}% needed)`}</b>
         </div>
-        <p className="text-[10px] text-muted-foreground">Rebalance fee: {rebalanceFee ?? "Unconfigured"} • Applies next settlement window</p>
-        <div className="flex justify-between gap-2"><Button variant="ghost" onClick={() => setDraft(alloc)}>Reset</Button><div className="flex gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={total !== 100} onClick={() => onSave(draft)}><RefreshCw />Apply</Button></div></div>
+        <Warning />
+        <div className="flex justify-between gap-2"><Button variant="ghost" onClick={() => setDraft(alloc)}>Reset</Button><div className="flex gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={total !== 100} onClick={() => setReview(true)}><RefreshCw />Review</Button></div></div>
       </div>
     </Shell>
   );
