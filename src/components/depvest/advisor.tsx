@@ -56,3 +56,4 @@ export function AdvisorDialog({ open, onClose, alloc, total, onApply }: { open: 
     </Dialog>
   );
 }
+
