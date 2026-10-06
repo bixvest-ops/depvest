@@ -43,7 +43,7 @@ import {
 } from "@/components/depvest/extras";
 import { CalculatorDialog, exportLedgerCsv, RebalanceDialog, TaskDialog, TransferDialog, VaultDetailDialog, type Alloc, type Flow } from "@/components/depvest/flows";
 import { About, FAQ, HowItWorks, Rules, Support } from "@/components/depvest/pages";
-import { EMPTY_TERMS, pct, rewardRange, type Terms } from "@/components/depvest/terms";
+import { DEFAULT_TERMS, pct, rewardRange, type Terms } from "@/components/depvest/terms";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -100,11 +100,13 @@ const vaults: Array<{
   accent: Accent;
   icon: typeof Landmark;
   auto: boolean;
+  badge: string;
+  note: string;
 }> = [
   {
     name: "US Treasury Cash",
     rate: "5.20%",
-    rateLabel: "APY",
+    rateLabel: "Net APY",
     risk: "Ultra-Low",
     detail: "Short-term US T-bills & cash reserves in USDC",
     balance: "$0.00",
@@ -114,11 +116,13 @@ const vaults: Array<{
     accent: "cash",
     icon: Landmark,
     auto: true,
+    badge: "Backed by US Gov Paper",
+    note: "Net yield after 10% DepVest performance fee. Instant liquidity.",
   },
   {
     name: "AI Cloud Compute",
     rate: "9.40%",
-    rateLabel: "APY",
+    rateLabel: "Net APY",
     risk: "Moderate",
     detail: "Contracted enterprise GPU/CPU rental revenues",
     balance: "$0.00",
@@ -128,11 +132,13 @@ const vaults: Array<{
     accent: "cloud",
     icon: Cpu,
     auto: true,
+    badge: "94.8% Cluster Utilization",
+    note: "Yield paid at the end of each 30-day epoch cycle.",
   },
   {
     name: "Blue-Chip Index",
     rate: "6.80%",
-    rateLabel: "APY",
+    rateLabel: "Net APY",
     risk: "Balanced",
     detail: "Staking yields on top blue-chip assets (ETH / SOL)",
     balance: "$0.00",
@@ -142,6 +148,8 @@ const vaults: Array<{
     accent: "digital",
     icon: Database,
     auto: true,
+    badge: "ETH/SOL Staking",
+    note: "Flexible staking with a 7-day unstaking period.",
   },
   {
     name: "AI Task Work",
@@ -156,6 +164,8 @@ const vaults: Array<{
     accent: "task",
     icon: Zap,
     auto: false,
+    badge: "142 Active Tasks Open",
+    note: "Zero capital required. Payouts settled instantly upon crowd-verification.",
   },
 ];
 
@@ -169,7 +179,7 @@ function DepVestApp() {
   const [earned, setEarned] = useState(0);
   const [tasksDone, setTasksDone] = useState(0);
   const [alloc, setAlloc] = useState<Alloc>({ Cash: 0, Cloud: 0, Digital: 0, Task: 0 })
-  const [terms, setTerms] = useState<Terms>(EMPTY_TERMS);
+  const [terms, setTerms] = useState<Terms>(DEFAULT_TERMS);
   const [ledger, setLedger] = useState<typeof activity>([]);
   const [wallet, setWallet] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
@@ -253,7 +263,7 @@ function DepVestApp() {
       )}
       <TransferDialog flow={flow} cash={cash} terms={terms} onClose={() => setFlow(null)} onNotice={showNotice}
         onDeposit={(n, net) => { setFlow(null); setCash((c) => c + n); addEntry("USDC deposit", `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus); showNotice(`Deposited ${fmt(n)} USDC on ${net}`); }}
-        onWithdraw={(n, net) => { setFlow(null); setCash((c) => c - n); addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} network • ${stamp()}`, "digital", ArrowDownToLine); showNotice(`Withdrawal of ${fmt(n)} sent — instant USDC`); }} />
+        onWithdraw={(n, net) => { setFlow(null); setCash((c) => c - n); addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} • ${stamp()}`, "digital", ArrowDownToLine); showNotice(`Withdrawal of ${fmt(n)} submitted (${net})`); }} />
       <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} rebalanceFee={terms.fees.rebalance} onClose={() => setFlow(null)} onSave={(a) => { setAlloc(a); setFlow(null); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); showNotice("Target mix saved"); }} />
       <CalculatorDialog open={flow?.kind === "calculator"} alloc={alloc} terms={terms} onClose={() => setFlow(null)} onInvest={() => setFlow({ kind: "deposit" })} />
       <TaskDialog flow={flow} onClose={() => setFlow(null)} onComplete={(title, reward) => { setFlow(null); setCash((c) => c + reward); setEarned((e) => e + reward); setTasksDone((t) => t + 1); addEntry("AI micro-task verified", `+${fmt(reward)}`, `${title} • ${stamp()}`, "task", Zap); showNotice(`Task payout: +${fmt(reward)} USDC`); }} />
@@ -342,11 +352,17 @@ function Portfolio({ terms, onAction, onNotice, onView, alloc, total, rows }: { 
   return (
     <>
       <PortfolioSummary onAction={onAction} alloc={alloc} total={total} />
-      {total === 0 && <div className="mt-4 flex flex-col gap-4 rounded-[14px] border border-success/30 bg-success/10 p-5 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">Welcome to DepVest</p><p className="mt-1 text-xs text-muted-foreground">You haven't funded your account yet. Choose a vault below to make your first secure deposit.</p></div><Button className="shrink-0 rounded-full" onClick={() => onAction("Deposit")}>Make first deposit<ChevronRight /></Button></div>}
+      {total === 0 && <section aria-label="Activate your account" className="mt-4 rounded-[14px] border border-border bg-card p-5">
+        <p className="text-sm font-semibold">Activate Your Account</p><p className="mt-1 text-xs text-muted-foreground">Choose how you want to start growing your balance.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col rounded-md border border-success/30 bg-success/10 p-4"><Landmark className="size-5 text-success" /><b className="mt-3 text-sm">Deploy Capital</b><p className="mt-1 flex-1 text-[11px] text-muted-foreground">Earn passive yield via Treasury, Compute, or Blue-Chips.</p><Button className="mt-4 rounded-full" onClick={() => onAction("Deposit")}>Deploy Capital<ArrowUpRight /></Button></div>
+          <div className="flex flex-col rounded-md border border-task/30 bg-task/10 p-4"><Zap className="size-5 text-task" /><b className="mt-3 text-sm">Earn Without Depositing</b><p className="mt-1 flex-1 text-[11px] text-muted-foreground">Zero capital. Get paid instantly for validating AI datasets.</p><Button variant="outline" className="mt-4 rounded-full" onClick={() => onView("Active Earn")}>Earn Without Depositing<Zap /></Button></div>
+        </div>
+      </section>}
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
           <SectionLabel title="Asset Vaults" right={`4 vaults · ${usd(total)} total`} />
-          <div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={withTerms(vault, terms, alloc)} onAction={onAction} onNotice={onNotice} />)}</div>
+          <div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={withTerms(vault, terms, alloc, total)} onAction={onAction} onNotice={onNotice} />)}</div>
           <div className="mt-4 flex items-center gap-3 rounded-md border border-dashed border-border bg-card/40 p-4 text-xs text-muted-foreground">
             <Sparkles className="size-4 shrink-0" /><span className="min-w-0">Add a new vault? Explore private credit & DePIN coming soon.</span>
             <Button variant="outline" size="sm" className="ml-auto" onClick={() => onAction("Waitlist")}>Join waitlist</Button>
@@ -404,7 +420,8 @@ function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[numbe
         <span className={cn("vault-icon", `accent-${vault.accent}`)}><Icon className="size-5" /></span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{vault.name}</h3><Badge accent={vault.accent}>● {vault.rate} <span className="text-muted-foreground">{vault.rateLabel}</span></Badge></div>
-          <div className="mt-2 flex flex-wrap items-center gap-2"><Badge accent={vault.accent}>{vault.risk}</Badge><span className="text-[10px] text-muted-foreground">{vault.detail}</span></div>
+          <div className="mt-2 flex flex-wrap items-center gap-2"><Badge accent={vault.accent}>{vault.risk}</Badge><span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[9px] text-muted-foreground">✓ {vault.badge}</span><span className="text-[10px] text-muted-foreground">{vault.detail}</span></div>
+          <p className="mt-1 text-[10px] text-muted-foreground">{vault.note}</p>
         </div>
         <label className="flex shrink-0 items-center gap-2 text-[10px] text-muted-foreground"><span className="hidden sm:inline">Auto-comp</span><button aria-label={`Toggle auto-compound for ${vault.name}`} aria-pressed={auto} onClick={() => { setAuto(!auto); onNotice(`Auto-compound ${auto ? "paused" : "enabled"} for ${vault.name}`); }} className={cn("relative h-5 w-9 rounded-full transition-colors", auto ? "bg-success" : "bg-secondary")}><span className={cn("absolute top-0.5 size-4 rounded-full bg-foreground transition-all", auto ? "left-[18px]" : "left-0.5")} /></button></label>
       </div>
@@ -484,11 +501,12 @@ function ProgressRow({ label, value }: { label: string; value: string }) { retur
 function WalletStat({ label, value, icon, note }: { label: string; value: string; icon: ReactNode; note?: string }) { return <div className="rounded-[14px] border border-border bg-card p-6"><span className="vault-icon accent-cash">{icon}</span><p className="mt-6 text-xs text-muted-foreground">{label}</p><p className="mt-2 font-mono text-2xl">{value}</p>{note && <p className="mt-1 text-[10px] text-muted-foreground">{note}</p>}</div>; }
 const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-function withTerms<T extends (typeof vaults)[number]>(v: T, terms: Terms, alloc?: Alloc): T {
+function withTerms<T extends (typeof vaults)[number]>(v: T, terms: Terms, alloc?: Alloc, total = 0): T {
   const key = v.accent === "cash" ? "Cash" : v.accent === "cloud" ? "Cloud" : v.accent === "digital" ? "Digital" : null;
   const rate = key ? pct(terms.apy[key]) : rewardRange(terms.taskReward);
   const a = alloc ? alloc[key ?? "Task"] : 0;
-  return { ...v, rate, allocation: `${a}%` };
+  const balance = key && total ? `$${((total * a) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : v.balance;
+  return { ...v, rate, allocation: `${a}%`, balance };
 }
 function ringStyle(a: Alloc) {
   const c = a.Cash, d = c + a.Cloud, e = d + a.Digital;
