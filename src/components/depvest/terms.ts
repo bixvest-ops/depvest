@@ -19,3 +19,12 @@ export const EMPTY_TERMS: Terms = {
 export const UNCONFIGURED = "Unconfigured";
 export const pct = (n: number | null) => (n == null ? UNCONFIGURED : `${n.toFixed(2)}%`);
 export const rewardRange = (r: Terms["taskReward"]) => (r ? `$${r.min.toFixed(2)} – $${r.max.toFixed(2)}` : UNCONFIGURED);
+
+// Official terms from the product spec (Two-Path Onboarding document).
+export const DEFAULT_TERMS: Terms = {
+  apy: { Cash: 4.65, Cloud: 11.4, Digital: 6.2 },
+  taskReward: { min: 0.35, max: 0.75 },
+  fees: { deposit: "Free", withdrawal: "Free standard · 1.5% instant", performance: "10% of net positive yield", rebalance: "Free" },
+  faqs: [],
+  verifiedAt: "2026-10-06",
+};

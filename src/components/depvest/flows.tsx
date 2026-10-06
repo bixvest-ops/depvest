@@ -42,11 +42,13 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
   const [dest, setDest] = useState("");
   const [qr, setQr] = useState(false);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setAmount(isDeposit ? "1000" : "250"); setDest(""); setBusy(false); setQr(false); } }, [open, isDeposit]);
+  const [instant, setInstant] = useState(false);
+  useEffect(() => { if (open) { setAmount(isDeposit ? "1000" : "250"); setDest(""); setBusy(false); setQr(false); setInstant(false); } }, [open, isDeposit]);
   const n = Number(amount) || 0;
-  const dvFee = isDeposit ? terms.fees.deposit : terms.fees.withdrawal;
+  const fee = !isDeposit && instant ? Math.round(n * 1.5) / 100 : 0;
+  const dvFee = isDeposit ? terms.fees.deposit : instant ? `${money(fee)} (1.5% express)` : "Free (standard)";
   const error = n <= 0 ? "Enter an amount" : n > 1_000_000 ? "Maximum is $1,000,000" : !isDeposit && n > cash ? `Only ${money(cash)} available` : !isDeposit && !/^0x[a-fA-F0-9]{40}$/.test(dest.trim()) ? "Enter a valid 0x wallet address (42 characters)" : "";
-  const submit = () => { if (error) return; setBusy(true); window.setTimeout(() => { isDeposit ? onDeposit(n, net) : onWithdraw(n, net); }, 900); };
+  const submit = () => { if (error) return; setBusy(true); window.setTimeout(() => { isDeposit ? onDeposit(n, net) : onWithdraw(n, `${net} · ${instant ? `Instant, fee ${money(fee)}` : "Standard T+1"}`); }, 900); };
   const vault = flow?.kind === "deposit" ? flow.vault : undefined;
   return (
     <Shell open={open} onClose={onClose} eyebrow={isDeposit ? "Deposit · USDC" : "Withdraw · instant USDC"} title={isDeposit ? (vault ? `Add funds to ${vault}` : "Deposit funds") : "Withdraw funds"} desc={isDeposit ? "Send USDC to your DepVest address or pick an amount to simulate." : `Available cash: ${money(cash)}. Withdrawals settle in minutes.`}>
@@ -62,10 +64,11 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
           <div className="mt-2 flex flex-wrap gap-2">{(isDeposit ? [250, 1000, 5000] : [100, 250, Math.floor(cash)]).map((p, i) => <button key={i} onClick={() => setAmount(String(p))} className="rounded-full bg-secondary px-3 py-1 font-mono text-[10px]">{!isDeposit && i === 2 ? "Max" : money(p)}</button>)}</div>
         </div>
         {!isDeposit && <div><Cap>Destination wallet</Cap><input value={dest} maxLength={42} onChange={(e) => setDest(e.target.value.trim())} placeholder="0x…" className="mt-2 h-11 w-full rounded-md border border-input bg-background px-3 font-mono text-xs outline-none" /><button onClick={() => setDest(DEPOSIT_ADDRESS)} className="mt-1 text-[10px] text-success">Use my connected wallet</button></div>}
+        {!isDeposit && <div role="radiogroup" aria-label="Settlement speed"><Cap>Settlement</Cap><div className="mt-2 space-y-2">{[{ k: false, t: "Standard Settlement", d: "Settles next day (T+1) or at next vault epoch", f: "FREE" }, { k: true, t: "Instant Express Settlement", d: "Immediate on-chain processing via emergency liquidity pools", f: "1.5%" }].map((o) => <button key={o.t} role="radio" aria-checked={instant === o.k} onClick={() => setInstant(o.k)} className={cn("flex w-full items-center gap-3 rounded-md border p-3 text-left", instant === o.k ? "border-success/50 bg-success/10" : "border-border bg-background/40")}><span className={cn("size-3.5 shrink-0 rounded-full border", instant === o.k ? "border-success bg-success" : "border-muted-foreground")} /><span className="min-w-0 flex-1"><b className="block text-sm">{o.t}</b><span className="text-[10px] text-muted-foreground">{o.d}</span></span><span className="font-mono text-xs">{o.f}</span></button>)}</div></div>}
         <div className="space-y-1 rounded-md bg-secondary/50 p-3 font-mono text-[11px]">
           <div className="flex justify-between"><span className="text-muted-foreground">Network fee</span><span>Shown by your wallet</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">DepVest fee</span><span className={dvFee ? "" : "text-muted-foreground"}>{dvFee ?? "Unconfigured"}</span></div>
-          <div className="flex justify-between border-t border-border pt-1"><span className="text-muted-foreground">Amount</span><b>{money(n)}</b></div>
+          <div className="flex justify-between border-t border-border pt-1"><span className="text-muted-foreground">{isDeposit ? "Amount" : "You receive"}</span><b>{money(n - fee)}</b></div>
         </div>
         {error && n > 0 && <p className="text-[11px] text-destructive">{error}</p>}
         <Preview />
@@ -77,6 +80,11 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
 
 /* ---------------- Rebalance ---------------- */
 export type Alloc = Record<"Cash" | "Cloud" | "Digital" | "Task", number>;
+const PRESETS: Array<{ name: string; icon: string; a: Alloc }> = [
+  { name: "Conservative Haven", icon: "🛡️", a: { Cash: 75, Cloud: 15, Digital: 10, Task: 0 } },
+  { name: "Balanced Yield", icon: "⚖️", a: { Cash: 40, Cloud: 35, Digital: 25, Task: 0 } },
+  { name: "Aggressive Tech", icon: "🚀", a: { Cash: 10, Cloud: 65, Digital: 25, Task: 0 } },
+];
 export function RebalanceDialog({ open, alloc, initial, total: balance = 0, rebalanceFee, onClose, onSave }: { open: boolean; alloc: Alloc; initial?: Alloc | null; total?: number; rebalanceFee?: string | null; onClose: () => void; onSave: (a: Alloc) => void }) {
   const [draft, setDraft] = useState(alloc);
   const [review, setReview] = useState(false);
@@ -106,6 +114,7 @@ export function RebalanceDialog({ open, alloc, initial, total: balance = 0, reba
     <Shell open={open} onClose={onClose} eyebrow="Rebalance portfolio" title="Set your target mix" desc="Drag sliders — total must equal 100%.">
       <div className="space-y-5">
         <Bar a={draft} />
+        <div className="grid grid-cols-3 gap-2">{PRESETS.map((p) => { const on = keys.every((k) => draft[k] === p.a[k]); return <button key={p.name} onClick={() => setDraft(p.a)} aria-pressed={on} className={cn("rounded-md border p-2 text-left text-[11px]", on ? "border-success/50 bg-success/10" : "border-border bg-background/40")}><b className="block">{p.icon} {p.name}</b><span className="font-mono text-[9px] text-muted-foreground">{p.a.Cash}/{p.a.Cloud}/{p.a.Digital}/{p.a.Task}</span></button>; })}</div>
         {keys.map((k) => (
           <div key={k}><div className="mb-2 flex justify-between text-xs"><span className="flex items-center gap-2"><i className={cn("size-2 rounded-full", colors[k])} />{k}</span><b className="font-mono">{draft[k]}%</b></div>
             <Slider aria-label={`${k} allocation`} value={[draft[k]]} max={100} step={1} onValueChange={([v]) => setDraft({ ...draft, [k]: v ?? 0 })} /></div>
