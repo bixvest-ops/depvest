@@ -263,7 +263,7 @@ function DepVestApp() {
       )}
       <TransferDialog flow={flow} cash={cash} terms={terms} onClose={() => setFlow(null)} onNotice={showNotice}
         onDeposit={(n, net) => { setFlow(null); setCash((c) => c + n); addEntry("USDC deposit", `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus); showNotice(`Deposited ${fmt(n)} USDC on ${net}`); }}
-        onWithdraw={(n, net) => { setFlow(null); setCash((c) => c - n); addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} network • ${stamp()}`, "digital", ArrowDownToLine); showNotice(`Withdrawal of ${fmt(n)} sent — instant USDC`); }} />
+        onWithdraw={(n, net) => { setFlow(null); setCash((c) => c - n); addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} • ${stamp()}`, "digital", ArrowDownToLine); showNotice(`Withdrawal of ${fmt(n)} submitted (${net})`); }} />
       <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} rebalanceFee={terms.fees.rebalance} onClose={() => setFlow(null)} onSave={(a) => { setAlloc(a); setFlow(null); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); showNotice("Target mix saved"); }} />
       <CalculatorDialog open={flow?.kind === "calculator"} alloc={alloc} terms={terms} onClose={() => setFlow(null)} onInvest={() => setFlow({ kind: "deposit" })} />
       <TaskDialog flow={flow} onClose={() => setFlow(null)} onComplete={(title, reward) => { setFlow(null); setCash((c) => c + reward); setEarned((e) => e + reward); setTasksDone((t) => t + 1); addEntry("AI micro-task verified", `+${fmt(reward)}`, `${title} • ${stamp()}`, "task", Zap); showNotice(`Task payout: +${fmt(reward)} USDC`); }} />
