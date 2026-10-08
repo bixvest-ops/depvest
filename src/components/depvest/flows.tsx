@@ -24,7 +24,7 @@ export const DEPOSIT_STRATEGIES: Array<{ name: DepositStrategyName; description:
 export type Flow =
   | { kind: "deposit"; vault?: string; initialAmount?: number; initialAlloc?: Alloc; initialStrategy?: DepositStrategyName }
   | { kind: "withdraw" }
-  | { kind: "rebalance" }
+  | { kind: "rebalance"; initial?: Alloc; targetVault?: string }
   | { kind: "calculator" }
   | { kind: "task"; title: string; reward: number }
   | { kind: "vault"; name: string }
@@ -124,7 +124,7 @@ const PRESETS: Array<{ name: string; icon: string; a: Alloc }> = [
   { name: "Balanced Yield", icon: "⚖️", a: { Cash: 40, Cloud: 35, Digital: 25, Task: 0 } },
   { name: "Aggressive Tech", icon: "🚀", a: { Cash: 10, Cloud: 65, Digital: 25, Task: 0 } },
 ];
-export function RebalanceDialog({ open, alloc, initial, total: balance = 0, rebalanceFee, onClose, onSave }: { open: boolean; alloc: Alloc; initial?: Alloc | null; total?: number; rebalanceFee?: string | null; onClose: () => void; onSave: (a: Alloc) => void }) {
+export function RebalanceDialog({ open, alloc, initial, targetVault, total: balance = 0, rebalanceFee, onClose, onSave }: { open: boolean; alloc: Alloc; initial?: Alloc | null; targetVault?: string | null; total?: number; rebalanceFee?: string | null; onClose: () => void; onSave: (a: Alloc) => void }) {
   const [draft, setDraft] = useState(alloc);
   const [review, setReview] = useState(false);
   useEffect(() => { if (open) { setDraft(initial ?? alloc); setReview(false); } }, [open, alloc, initial]);
@@ -136,7 +136,7 @@ export function RebalanceDialog({ open, alloc, initial, total: balance = 0, reba
   const Bar = ({ a }: { a: Alloc }) => <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-secondary">{keys.map((k) => <span key={k} className={colors[k]} style={{ width: `${a[k]}%` }} />)}</div>;
   const Warning = () => risky ? <div role="alert" className="flex gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-[11px] text-warning"><ShieldCheck className="size-4 shrink-0" /><span><b>Concentration risk:</b> {volatile}% is in higher-volatility vaults (AI Cloud Compute + Digital Assets). Consider keeping this under 50%.</span></div> : null;
   if (review) return (
-    <Shell open={open} onClose={onClose} eyebrow="Confirm rebalance" title="Review your new mix" desc="Compare your current and proposed allocation before confirming.">
+    <Shell open={open} onClose={onClose} eyebrow="Confirm rebalance" title={targetVault ? `Review cash allocation to ${targetVault}` : "Review your new mix"} desc="Compare your current and proposed allocation before confirming.">
       <div className="space-y-5">
         <div><p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Current</p><Bar a={alloc} /></div>
         <div><p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Proposed</p><Bar a={draft} /></div>
@@ -150,7 +150,7 @@ export function RebalanceDialog({ open, alloc, initial, total: balance = 0, reba
     </Shell>
   );
   return (
-    <Shell open={open} onClose={onClose} eyebrow="Rebalance portfolio" title="Set your target mix" desc="Drag sliders — total must equal 100%.">
+    <Shell open={open} onClose={onClose} eyebrow="Rebalance portfolio" title={targetVault ? `Allocate cash to ${targetVault}` : "Set your target mix"} desc={targetVault ? "The proposed mix moves the currently liquid cash allocation into this vault. Adjust it or choose a preset before confirming." : "Drag sliders — total must equal 100%."}>
       <div className="space-y-5">
         <Bar a={draft} />
         <div className="grid grid-cols-3 gap-2">{PRESETS.map((p) => { const on = keys.every((k) => draft[k] === p.a[k]); return <button key={p.name} onClick={() => setDraft(p.a)} aria-pressed={on} className={cn("rounded-md border p-2 text-left text-[11px]", on ? "border-success/50 bg-success/10" : "border-border bg-background/40")}><b className="block">{p.icon} {p.name}</b><span className="font-mono text-[9px] text-muted-foreground">{p.a.Cash}/{p.a.Cloud}/{p.a.Digital}/{p.a.Task}</span></button>; })}</div>

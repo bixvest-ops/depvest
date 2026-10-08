@@ -238,10 +238,20 @@ function DepVestApp() {
     .filter((row) => row.status === "pending" && /withdrawal/i.test(row.title))
     .reduce((total, row) => total + Math.abs(Number(row.value.replace(/[^\d.]/g, ""))), 0);
   const availableCash = Math.max(0, cash - pendingWithdrawals);
+  const allocationTotal = Object.values(alloc).reduce((sum, value) => sum + value, 0);
+  const idleCash = Math.max(0, availableCash * (allocationTotal === 0 ? 1 : alloc.Cash / 100));
+  const cashIsUnallocated = allocationTotal === 0 || (alloc.Cash === 100 && alloc.Cloud === 0 && alloc.Digital === 0 && alloc.Task === 0);
   const setAction = (a: string) => {
     if (a === "Deposit" || a === "Deposit funds") return setFlow({ kind: "deposit" });
     if (a === "Withdraw funds") return setFlow({ kind: "withdraw" });
-    if (a === "Rebalance") return setFlow({ kind: "rebalance" });
+    if (a === "Rebalance") return setFlow({ kind: "rebalance", ...(allocationTotal === 0 ? { initial: { Cash: 100, Cloud: 0, Digital: 0, Task: 0 } } : {}) });
+    if (a.startsWith("Allocate Cash: ")) {
+      const targetVault = a.slice("Allocate Cash: ".length);
+      const targetKey: keyof Alloc = /compute/i.test(targetVault) ? "Cloud" : "Digital";
+      const current = allocationTotal === 0 ? { Cash: 100, Cloud: 0, Digital: 0, Task: 0 } : alloc;
+      const initial = { ...current, Cash: 0, [targetKey]: current[targetKey] + current.Cash };
+      return setFlow({ kind: "rebalance", initial, targetVault });
+    }
     if (a === "Calculator") { return setFlow({ kind: "calculator" }); }
     if (a === "Waitlist") return showNotice("Waitlist joined — DePIN vaults coming soon");
     if (a === "Quick Earn") { showNotice("Quick Earn queue opened"); return go("Active Earn"); }
@@ -267,7 +277,7 @@ function DepVestApp() {
         onNotice={showNotice}
       />
       <main className="mx-auto w-full max-w-[1440px] px-4 pb-[calc(8rem+env(safe-area-inset-bottom,0px))] pt-6 sm:px-6 sm:pb-[calc(9rem+env(safe-area-inset-bottom,0px))] md:pt-8 lg:px-8 lg:pb-20">
-        {view === "Portfolio" && <Portfolio terms={terms} onAction={setAction} onNotice={showNotice} onView={go} alloc={alloc} total={cash} rows={allRows()} />}
+        {view === "Portfolio" && <Portfolio terms={terms} onAction={setAction} onNotice={showNotice} onView={go} alloc={alloc} total={cash} idleCash={idleCash} showIdleBanner={cashIsUnallocated} rows={allRows()} />}
         {view === "Invest" && <Invest onAction={setAction} terms={terms} />}
         {view === "Active Earn" && <ActiveEarn terms={terms} onAction={setAction} earned={earned} done={tasksDone} />}
         {view === "Wallet & Ledger" && <WalletLedger rows={allRows()} cash={availableCash} earned={earned} onAction={setAction} onReceipt={setReceipt} wallet={wallet} onConnect={() => setConnectOpen(true)} />}
@@ -301,7 +311,7 @@ function DepVestApp() {
       <TransferDialog flow={flow} cash={availableCash} terms={terms} onClose={() => setFlow(null)} onNotice={showNotice}
         onDeposit={(n, net, strategyAlloc, strategyName) => { setFlow(null); const id = addEntry(`USDC deposit · ${strategyName} auto-deployed`, `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus, { status: "pending", vaultId: strategyName }); showNotice(`Deposit of ${fmt(n)} with ${strategyName} is pending clearing`); settleEntry(id, () => { setCash((c) => c + n); setAlloc(strategyAlloc); }, `Deposit of ${fmt(n)} with ${strategyName} confirmed`); }}
         onWithdraw={(n, net) => { setFlow(null); const id = addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} • ${stamp()}`, "digital", ArrowDownToLine, { status: "pending", vaultId: "Connected wallet", settlementTier: net.includes("Instant") ? "Express" : "Standard T+1" }); showNotice(`Withdrawal of ${fmt(n)} is pending clearing`); settleEntry(id, () => setCash((c) => c - n), `Withdrawal of ${fmt(n)} confirmed`); }} />
-      <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} total={cash} rebalanceFee={terms.fees.rebalance} onClose={() => setFlow(null)} onSave={(a) => { setAlloc(a); setFlow(null); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); showNotice("Target mix saved"); }} />
+      <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} initial={flow?.kind === "rebalance" ? flow.initial ?? null : null} targetVault={flow?.kind === "rebalance" ? flow.targetVault ?? null : null} total={cash} rebalanceFee={terms.fees.rebalance} onClose={() => setFlow(null)} onSave={(a) => { setAlloc(a); setFlow(null); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); showNotice("Target mix saved"); }} />
       <CalculatorDialog open={flow?.kind === "calculator"} onClose={() => setFlow(null)} onInvest={(amount, target) => {
         const strategyName: DepositStrategyName = target.Cloud >= 60 ? "Aggressive Tech" : target.Cash >= 60 ? "Conservative Haven" : "Balanced Yield";
         setFlow({ kind: "deposit", initialAmount: amount, initialAlloc: target, initialStrategy: strategyName });
@@ -388,10 +398,14 @@ function NavButton({ item, active, onClick }: { item: (typeof navItems)[number];
   return <button onClick={onClick} className={cn("flex h-8 items-center gap-2 rounded-full px-4 text-xs transition-colors", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}><Icon className="size-3.5" />{item.label}</button>;
 }
 
-function Portfolio({ terms, onAction, onNotice, onView, alloc, total, rows }: { onAction: (value: string) => void; onNotice: (value: string) => void; onView: (v: View) => void; alloc: Alloc; total: number; rows: typeof activity; terms: Terms }) {
+function Portfolio({ terms, onAction, onNotice, onView, alloc, total, idleCash, showIdleBanner, rows }: { onAction: (value: string) => void; onNotice: (value: string) => void; onView: (v: View) => void; alloc: Alloc; total: number; idleCash: number; showIdleBanner: boolean; rows: typeof activity; terms: Terms }) {
   return (
     <>
       <PortfolioSummary onAction={onAction} alloc={alloc} total={total} />
+      {total > 0 && idleCash > 0 && showIdleBanner && <section className="mt-4 flex flex-col gap-4 rounded-[14px] border border-success/35 bg-success/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-sm font-semibold">You have {usd(idleCash)} in liquid cash.</p><p className="mt-1 text-xs text-muted-foreground">Put your capital to work across yield-generating vaults.</p><p className="mt-1 text-[10px] text-muted-foreground">Preview only. Strategy changes are simulated and returns are not guaranteed.</p></div>
+        <Button className="shrink-0 rounded-full" onClick={() => onAction("Rebalance")}>Deploy to Vaults <ArrowUpRight /></Button>
+      </section>}
       {total === 0 && <section aria-label="Activate your account" className="mt-4 rounded-[14px] border border-border bg-card p-5">
         <p className="text-sm font-semibold">Activate Your Account</p><p className="mt-1 text-xs text-muted-foreground">Choose how you want to start growing your balance.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -402,7 +416,9 @@ function Portfolio({ terms, onAction, onNotice, onView, alloc, total, rows }: { 
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
           <SectionLabel title="Asset Vaults" right={`4 vaults · ${usd(total)} total`} />
-          <TooltipProvider><div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={withTerms(vault, terms, alloc, total)} onAction={onAction} onNotice={onNotice} />)}</div></TooltipProvider>
+          <TooltipProvider>
+            <div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={withTerms(vault, terms, alloc, total)} onAction={onAction} onNotice={onNotice} idleCash={idleCash} />)}</div>
+          </TooltipProvider>
           <div className="mt-4 flex items-center gap-3 rounded-md border border-dashed border-border bg-card/40 p-4 text-xs text-muted-foreground">
             <Sparkles className="size-4 shrink-0" /><span className="min-w-0">Add a new vault? Explore private credit & DePIN coming soon.</span>
             <Button variant="outline" size="sm" className="ml-auto" onClick={() => onAction("Waitlist")}>Join waitlist</Button>
@@ -451,7 +467,7 @@ function PortfolioSummary({ onAction, alloc, total }: { onAction: (value: string
   );
 }
 
-function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[number]; onAction: (value: string) => void; onNotice: (value: string) => void }) {
+function VaultCard({ vault, onAction, onNotice, idleCash }: { vault: (typeof vaults)[number]; onAction: (value: string) => void; onNotice: (value: string) => void; idleCash: number }) {
   const [auto, setAuto] = useState(vault.auto);
   const [startedAt] = useState(() => Date.now());
   const [clock, setClock] = useState(startedAt);
@@ -482,7 +498,9 @@ function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[numbe
       {vault.accent === "cloud" && <div className="mt-3"><div className="mb-1 flex justify-between text-[9px] text-muted-foreground"><span>Epoch progress</span><span>{Math.round(epochProgress)}%</span></div><div className="h-1 overflow-hidden rounded-full bg-secondary"><span className="block h-full rounded-full bg-cloud" style={{ width: `${epochProgress}%` }} /></div></div>}
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
         <div><Label>Balance</Label><div className="mt-1 flex items-baseline gap-2"><strong className="font-mono text-[22px]">{vault.balance}</strong><span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[9px] text-muted-foreground">{vault.allocation}</span></div><p className="mt-2 text-[10px] text-muted-foreground">◉ {vault.terms}</p></div>
-        <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex"><Button variant="outline" size="sm" className="rounded-full" onClick={() => onAction(`Invest in ${vault.name}`)}>Details <ChevronRight /></Button><Button size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction(`${vault.action}: ${vault.name}`)}><span className="truncate">{vault.action}</span> <ArrowUpRight /></Button></div>
+        <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex">
+          {idleCash > 0 && (vault.accent === "cloud" || vault.accent === "digital") && <Button variant="outline" size="sm" className="rounded-full" onClick={() => onAction(`Allocate Cash: ${vault.name}`)}>Allocate Cash</Button>}
+          <Button variant="outline" size="sm" className="rounded-full" onClick={() => onAction(`Invest in ${vault.name}`)}>Details <ChevronRight /></Button><Button size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction(`${vault.action}: ${vault.name}`)}><span className="truncate">{vault.action}</span> <ArrowUpRight /></Button></div>
       </div>
       <div className="mt-4 h-0.5 overflow-hidden rounded-full bg-secondary"><span className={cn("block h-full", `bar-${vault.accent}`)} style={{ width: vault.allocation }} /></div>
     </article>
