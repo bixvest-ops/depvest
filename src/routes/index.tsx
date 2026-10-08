@@ -10,6 +10,7 @@ import {
   Check,
   ChevronRight,
   CircleDollarSign,
+  CircleHelp,
   Cloud,
   Coins,
   Cpu,
@@ -41,11 +42,12 @@ import {
   WALLET_ADDRESS,
   type Receipt,
 } from "@/components/depvest/extras";
-import { CalculatorDialog, exportLedgerCsv, RebalanceDialog, TaskDialog, TransferDialog, VaultDetailDialog, type Alloc, type Flow } from "@/components/depvest/flows";
+import { CalculatorDialog, exportLedgerCsv, RebalanceDialog, TaskDialog, TransferDialog, VaultDetailDialog, type Alloc, type DepositStrategyName, type Flow } from "@/components/depvest/flows";
 import { About, FAQ, HowItWorks, Rules, Support } from "@/components/depvest/pages";
 import { DEFAULT_TERMS, pct, rewardRange, type Terms } from "@/components/depvest/terms";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -116,6 +118,7 @@ const vaults: Array<{
   auto: boolean;
   badge: string;
   note: string;
+  sourceExplanation: string;
 }> = [
   {
     name: "US Treasury Cash",
@@ -130,8 +133,9 @@ const vaults: Array<{
     accent: "cash",
     icon: Landmark,
     auto: true,
-    badge: "Backed by US Gov Paper",
+    badge: "Treasury-bill strategy",
     note: "Net yield after 10% DepVest performance fee. Instant liquidity.",
+    sourceExplanation: "The intended return source is interest on short-term U.S. Treasury bills. Treasury securities carry risks, and this preview does not hold Treasury bills.",
   },
   {
     name: "AI Cloud Compute",
@@ -146,8 +150,9 @@ const vaults: Array<{
     accent: "cloud",
     icon: Cpu,
     auto: true,
-    badge: "94.8% Cluster Utilization",
+    badge: "Compute-rental strategy",
     note: "Yield paid at the end of each 30-day epoch cycle.",
+    sourceExplanation: "The proposed source is rent paid by customers for AI server capacity. Demand, prices, equipment uptime, and operating costs can change; no live rental contracts are connected here.",
   },
   {
     name: "Blue-Chip Index",
@@ -164,12 +169,13 @@ const vaults: Array<{
     auto: true,
     badge: "ETH/SOL Staking",
     note: "Flexible staking with a 7-day unstaking period.",
+    sourceExplanation: "The proposed source is network staking rewards and transaction fees. Token prices and rewards can change, and technical or unstaking risks apply; this preview does not stake assets.",
   },
   {
     name: "AI Task Work",
     rate: "$0.25 – $0.45",
     rateLabel: "/ task",
-    risk: "Zero Risk",
+    risk: "No capital required",
     detail: "Direct micro-payouts for dataset validation",
     balance: "$0.00",
     allocation: "5%",
@@ -178,8 +184,9 @@ const vaults: Array<{
     accent: "task",
     icon: Zap,
     auto: false,
-    badge: "142 Active Tasks Open",
+    badge: "Task-work strategy",
     note: "Zero capital required. Payouts settled instantly upon crowd-verification.",
+    sourceExplanation: "This is work, not an investment. A client would pay for accepted tasks such as data review, and the platform could pay workers a share. No task marketplace is connected here.",
   },
 ];
 
@@ -195,7 +202,6 @@ function DepVestApp() {
   const [alloc, setAlloc] = useState<Alloc>({ Cash: 0, Cloud: 0, Digital: 0, Task: 0 })
   const [terms, setTerms] = useState<Terms>(DEFAULT_TERMS);
   const [ledger, setLedger] = useState<typeof activity>([]);
-  const [deployment, setDeployment] = useState<{ amount: number; alloc: Alloc; strategyName: string } | null>(null);
   const [wallet, setWallet] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -293,10 +299,13 @@ function DepVestApp() {
         </div>
       )}
       <TransferDialog flow={flow} cash={availableCash} terms={terms} onClose={() => setFlow(null)} onNotice={showNotice}
-        onDeposit={(n, net) => { const target = flow?.kind === "deposit" ? flow.vault ?? "US Treasury Cash" : "US Treasury Cash"; setFlow(null); const id = addEntry("USDC deposit", `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus, { status: "pending", vaultId: target }); showNotice(`Deposit of ${fmt(n)} to ${target} is pending clearing`); settleEntry(id, () => setCash((c) => c + n), `Deposit of ${fmt(n)} to ${target} confirmed`); }}
+        onDeposit={(n, net, strategyAlloc, strategyName) => { setFlow(null); const id = addEntry(`USDC deposit · ${strategyName} auto-deployed`, `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus, { status: "pending", vaultId: strategyName }); showNotice(`Deposit of ${fmt(n)} with ${strategyName} is pending clearing`); settleEntry(id, () => { setCash((c) => c + n); setAlloc(strategyAlloc); }, `Deposit of ${fmt(n)} with ${strategyName} confirmed`); }}
         onWithdraw={(n, net) => { setFlow(null); const id = addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} • ${stamp()}`, "digital", ArrowDownToLine, { status: "pending", vaultId: "Connected wallet", settlementTier: net.includes("Instant") ? "Express" : "Standard T+1" }); showNotice(`Withdrawal of ${fmt(n)} is pending clearing`); settleEntry(id, () => setCash((c) => c - n), `Withdrawal of ${fmt(n)} confirmed`); }} />
-      <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} initial={deployment?.alloc ?? null} total={cash} rebalanceFee={terms.fees.rebalance} onClose={() => { setDeployment(null); setFlow(null); }} onSave={(a) => { const nextDeployment = deployment; setAlloc(a); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); setDeployment(null); setFlow(nextDeployment ? { kind: "deposit", initialAmount: nextDeployment.amount, vault: nextDeployment.strategyName } : null); if (!nextDeployment) showNotice("Target mix saved"); }} />
-      <CalculatorDialog open={flow?.kind === "calculator"} onClose={() => setFlow(null)} onInvest={(amount, target) => { const strategyName = target.Cloud >= 60 ? "Aggressive Tech" : target.Cash >= 60 ? "Conservative Haven" : "Balanced Yield"; setDeployment({ amount, alloc: target, strategyName }); setFlow({ kind: "rebalance" }); }} />
+      <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} total={cash} rebalanceFee={terms.fees.rebalance} onClose={() => setFlow(null)} onSave={(a) => { setAlloc(a); setFlow(null); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); showNotice("Target mix saved"); }} />
+      <CalculatorDialog open={flow?.kind === "calculator"} onClose={() => setFlow(null)} onInvest={(amount, target) => {
+        const strategyName: DepositStrategyName = target.Cloud >= 60 ? "Aggressive Tech" : target.Cash >= 60 ? "Conservative Haven" : "Balanced Yield";
+        setFlow({ kind: "deposit", initialAmount: amount, initialAlloc: target, initialStrategy: strategyName });
+      }} />
       <TaskDialog flow={flow} onClose={() => setFlow(null)} onComplete={(title, reward) => { setFlow(null); const id = addEntry("AI task payout", `+${fmt(reward)}`, `${title} • ${stamp()}`, "task", Zap, { status: "pending", vaultId: "AI Task Work", settlementTier: "Instant verification" }); showNotice(`Task payout of ${fmt(reward)} pending verification`); settleEntry(id, () => { setCash((c) => c + reward); setEarned((e) => e + reward); setTasksDone((t) => t + 1); }, `Task payout of ${fmt(reward)} confirmed`); }} />
       <VaultDetailDialog vault={flow?.kind === "vault" ? (vaults.map((v) => withTerms(v, terms, alloc)).find((v) => v.name === flow.name) ?? null) : null} onClose={() => setFlow(null)} onNotice={showNotice} onDeposit={(name) => setFlow({ kind: "deposit", vault: name })} />
       <ConnectWalletDialog open={connectOpen} onOpenChange={setConnectOpen} onConnected={(w) => { setWallet(w); setConnectOpen(false); showNotice(`${w} connected`); }} />
@@ -393,7 +402,7 @@ function Portfolio({ terms, onAction, onNotice, onView, alloc, total, rows }: { 
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
           <SectionLabel title="Asset Vaults" right={`4 vaults · ${usd(total)} total`} />
-          <div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={withTerms(vault, terms, alloc, total)} onAction={onAction} onNotice={onNotice} />)}</div>
+          <TooltipProvider><div className="space-y-4">{vaults.map((vault) => <VaultCard key={vault.name} vault={withTerms(vault, terms, alloc, total)} onAction={onAction} onNotice={onNotice} />)}</div></TooltipProvider>
           <div className="mt-4 flex items-center gap-3 rounded-md border border-dashed border-border bg-card/40 p-4 text-xs text-muted-foreground">
             <Sparkles className="size-4 shrink-0" /><span className="min-w-0">Add a new vault? Explore private credit & DePIN coming soon.</span>
             <Button variant="outline" size="sm" className="ml-auto" onClick={() => onAction("Waitlist")}>Join waitlist</Button>
@@ -463,14 +472,14 @@ function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[numbe
       <div className="flex items-start gap-4">
         <span className={cn("vault-icon", `accent-${vault.accent}`)}><Icon className="size-5" /></span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{vault.name}</h3><Badge accent={vault.accent}>● {vault.rate} <span className="text-muted-foreground">{vault.rateLabel}</span></Badge></div>
+          <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{vault.name}</h3><Tooltip><TooltipTrigger asChild><button type="button" aria-label={`Where does the yield come from for ${vault.name}?`} className="rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><CircleHelp className="size-4" /></button></TooltipTrigger><TooltipContent side="top" className="max-w-64 whitespace-normal text-left leading-relaxed"><span className="font-semibold">Where does the yield come from?</span><br />{vault.sourceExplanation}<br /><span className="text-primary-foreground/70">Strategy description only; not confirmation of live assets or returns.</span></TooltipContent></Tooltip><Badge accent={vault.accent}>● {vault.rate} <span className="text-muted-foreground">{vault.rateLabel}</span></Badge></div>
           <div className="mt-2 flex flex-wrap items-center gap-2"><Badge accent={vault.accent}>{vault.risk}</Badge><span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[9px] text-muted-foreground">✓ {vault.badge}</span><span className="text-[10px] text-muted-foreground">{vault.detail}</span></div>
           <p className="mt-1 text-[10px] text-muted-foreground">{vault.note}</p>
           <p className="mt-1 text-[10px] text-success">{vault.accent === "cash" ? `Daily Compounding · Next payout in ${String(Math.floor(treasuryRemaining / 60)).padStart(2, "0")}h ${String(treasuryRemaining % 60).padStart(2, "0")}m` : vault.accent === "cloud" ? `Epoch #${epochNumber} (30-Day Cycle) · Closes in ${epochDays} days` : vault.accent === "digital" ? "7-Day Unstaking Cooldown · Flexible Rewards" : "Instant Payout Upon Verification"}</p>
         </div>
-        {vault.accent === "cloud" && <div className="mt-3"><div className="mb-1 flex justify-between text-[9px] text-muted-foreground"><span>Epoch progress</span><span>{Math.round(epochProgress)}%</span></div><div className="h-1 overflow-hidden rounded-full bg-secondary"><span className="block h-full rounded-full bg-cloud" style={{ width: `${epochProgress}%` }} /></div></div>}
         <label className="flex shrink-0 items-center gap-2 text-[10px] text-muted-foreground"><span className="hidden sm:inline">Auto-comp</span><button aria-label={`Toggle auto-compound for ${vault.name}`} aria-pressed={auto} onClick={() => { setAuto(!auto); onNotice(`Auto-compound ${auto ? "paused" : "enabled"} for ${vault.name}`); }} className={cn("relative h-5 w-9 rounded-full transition-colors", auto ? "bg-success" : "bg-secondary")}><span className={cn("absolute top-0.5 size-4 rounded-full bg-foreground transition-all", auto ? "left-[18px]" : "left-0.5")} /></button></label>
       </div>
+      {vault.accent === "cloud" && <div className="mt-3"><div className="mb-1 flex justify-between text-[9px] text-muted-foreground"><span>Epoch progress</span><span>{Math.round(epochProgress)}%</span></div><div className="h-1 overflow-hidden rounded-full bg-secondary"><span className="block h-full rounded-full bg-cloud" style={{ width: `${epochProgress}%` }} /></div></div>}
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
         <div><Label>Balance</Label><div className="mt-1 flex items-baseline gap-2"><strong className="font-mono text-[22px]">{vault.balance}</strong><span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[9px] text-muted-foreground">{vault.allocation}</span></div><p className="mt-2 text-[10px] text-muted-foreground">◉ {vault.terms}</p></div>
         <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex"><Button variant="outline" size="sm" className="rounded-full" onClick={() => onAction(`Invest in ${vault.name}`)}>Details <ChevronRight /></Button><Button size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90" onClick={() => onAction(`${vault.action}: ${vault.name}`)}><span className="truncate">{vault.action}</span> <ArrowUpRight /></Button></div>

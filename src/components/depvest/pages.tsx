@@ -21,22 +21,57 @@ const Val = ({ v }: { v: string | null }) => (v ? <span>{v}</span> : <Unconfigur
 
 /* ---------------- How It Works ---------------- */
 const steps = [
-  { icon: WalletCards, title: "Connect & fund", copy: "Connect a self-custody wallet and deposit USDC on a supported network. Your balance appears as Available Cash once the transfer settles on-chain." },
-  { icon: Scale, title: "Choose a target mix", copy: "Allocate across the Treasury cash, AI compute and blue-chip vaults with the Rebalance tool. Nothing is allocated until you set a mix totalling 100%." },
-  { icon: Building2, title: "Capital is deployed", copy: "Each vault routes funds into its underlying strategy under the published product terms. Rates are shown only after they are verified." },
-  { icon: ArrowDownToLine, title: "Track & withdraw", copy: "Yield accrues per vault and is recorded in your ledger. Request withdrawals back to your wallet, subject to each vault's liquidity terms." },
+  { icon: WalletCards, title: "Connect & fund", copy: "The intended product flow is to connect a self-custody wallet and deposit USDC. This preview simulates the steps locally; it does not connect to a wallet or move funds." },
+  { icon: Scale, title: "Choose a target mix", copy: "Choose how a portfolio could be split between Treasury bills, compute, and digital-asset staking. Rebalance changes the target mix in this preview, not real holdings." },
+  { icon: Building2, title: "Understand the sources", copy: "The strategies are designed around interest, hardware rental, or blockchain staking rewards. No live deployment, counterparties, or realized yields are verified by this demo." },
+  { icon: ArrowDownToLine, title: "Track & withdraw", copy: "The ledger and settlement timers demonstrate how activity could appear. Actual availability, payout timing, and withdrawal terms would depend on a live product and its official terms." },
+];
+const yieldSources = [
+  { title: "Treasury cash", label: "Interest on short-term government debt", copy: "In this strategy model, returns would come from interest paid on short-dated U.S. Treasury bills. Treasury securities are obligations of the U.S. government, but their value, access timing, and any fund or custody arrangement still carry risks. This preview does not hold Treasury bills." },
+  { title: "AI cloud compute", label: "Fees for renting computing hardware", copy: "The proposed model earns revenue by financing or operating servers and renting computing capacity to customers. Rental income can fall if demand or prices drop, or hardware is idle, damaged, or costly to run. No servers or rental contracts are connected to this preview." },
+  { title: "Blue-chip digital assets", label: "Protocol rewards and transaction fees", copy: "The proposed model would stake assets such as ETH or SOL. A network may distribute token rewards and transaction fees, but reward rates and token prices can change; technical, slashing, and unstaking risks can apply. This preview does not stake assets." },
+  { title: "Active Earn", label: "Payment for completed microtasks", copy: "This is work, not an investment: a business would pay for accepted tasks such as reviewing or labeling data, and a platform could pay workers a share. Task availability, acceptance, and payment depend on actual contracts. No task marketplace is connected here." },
 ];
 export function HowItWorks({ terms, onStart }: { terms: Terms; onStart: () => void }) {
   return (
     <section>
-      <Intro eyebrow="How It Works" title="From deposit to diversified yield." copy="A transparent four-step flow. Every figure shown in DepVest comes from verified product terms — anything not yet verified is clearly marked." />
+      <Intro eyebrow="How It Works" title="Where returns are intended to come from." copy="DepVest is designed as a digital asset manager: a target mix would spread capital across strategies that aim to earn interest, hardware-rental income, or staking rewards. Returns are not free or guaranteed. This app is a local preview only—no money is invested, and no live assets, contracts, or payouts are connected." />
+      <Card className="mb-6 border-warning/30 bg-warning/5">
+        <h2 className="text-sm font-semibold">What you are looking at</h2>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Balances, transfers, settlement timers, and strategy projections in this demo are simulated in your browser. They do not prove that assets are held, revenue has been earned, or withdrawals can be made. Rates are estimates, can change, and do not guarantee a return or protect your principal.</p>
+      </Card>
+      <h2 className="mb-3 text-base font-semibold">Four proposed sources of income</h2>
+      <div className="mb-8 grid gap-4 md:grid-cols-2">
+        {yieldSources.map((source) => <Card key={source.title} className="h-full"><Eyebrow>{source.label}</Eyebrow><h3 className="mt-2 text-sm font-semibold">{source.title}</h3><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{source.copy}</p></Card>)}
+      </div>
       <ol className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {steps.map(({ icon: Icon, title, copy }, i) => (
           <li key={title}><Card className="h-full"><div className="flex items-center justify-between"><span className="vault-icon accent-cash"><Icon className="size-5" /></span><span className="font-mono text-xs text-muted-foreground">0{i + 1}</span></div><h2 className="mt-6 text-base font-semibold">{title}</h2><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{copy}</p></Card></li>
         ))}
       </ol>
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <Card>
+          <Eyebrow>How the platform could earn</Eyebrow>
+          <h2 className="mt-2 text-sm font-semibold">Fees tied to activity</h2>
+          <ul className="mt-3 space-y-2 text-xs leading-relaxed text-muted-foreground">
+            <li><b className="text-foreground">Performance fee:</b> The stated model is 10% of positive yield; for $100 of eligible yield, an investor would keep $90 and the platform would receive $10. If there is no positive yield, this fee would be $0, subject to the actual fee terms.</li>
+            <li><b className="text-foreground">Task marketplace:</b> A platform may retain a disclosed difference between what a client pays and what a worker receives. For example, $0.60 from a client and $0.40 to a worker leaves $0.20 before operating costs; these are illustrative numbers, not current contracts or task rates.</li>
+            <li><b className="text-foreground">Express withdrawal:</b> The proposed fee schedule describes a 1.5% charge for express liquidity; standard timing and fees must be confirmed in official terms before use.</li>
+          </ul>
+        </Card>
+        <Card>
+          <Eyebrow>Why rebalance?</Eyebrow>
+          <h2 className="mt-2 text-sm font-semibold">Balance different kinds of risk</h2>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Treasury exposure, compute rental, and digital-asset staking have different sources of income and different risks. A target mix lets an investor choose the balance they want; it cannot remove risk or ensure a specific return.</p>
+          <div className="mt-3 space-y-2 text-xs">
+            <p className="rounded-md border border-border bg-background/40 p-3"><b>Illustrative conservative mix:</b> 75% Treasury · 15% compute · 10% digital assets.</p>
+            <p className="rounded-md border border-border bg-background/40 p-3"><b>Illustrative balanced mix:</b> 40% Treasury · 35% compute · 25% digital assets.</p>
+            <p className="text-[10px] text-muted-foreground">Examples only. A blended estimate depends on current, verified rates and fees; it is not a promise or forecast.</p>
+          </div>
+        </Card>
+      </div>
       <Card className="mt-6 grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
-        <div><Eyebrow>Current verified rates</Eyebrow>
+        <div><Eyebrow>Rates currently configured in this preview</Eyebrow>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {([["Treasury cash", pct(terms.apy.Cash)], ["AI compute", pct(terms.apy.Cloud)], ["Blue-chip", pct(terms.apy.Digital)], ["Task reward", rewardRange(terms.taskReward)]] as const).map(([k, v]) => (
               <div key={k} className="rounded-md border border-border bg-background/40 p-3"><p className="text-[10px] text-muted-foreground">{k}</p><div className="mt-1 font-mono text-sm">{v === UNCONFIGURED ? <Unconfigured /> : v}</div></div>

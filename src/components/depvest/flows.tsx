@@ -9,8 +9,20 @@ import type { Terms } from "./terms";
 
 export const DEPOSIT_ADDRESS = "0x8a24c9F31b07dE52a1C6f04B7e9D3a1f6b2c4e91";
 
+export type Alloc = Record<"Cash" | "Cloud" | "Digital" | "Task", number>;
+export type DepositStrategyName = "Balanced Yield" | "Conservative Haven" | "Aggressive Tech" | "Liquid Cash Only" | "US Treasury Cash" | "AI Cloud Compute" | "Blue-Chip Index";
+export const DEPOSIT_STRATEGIES: Array<{ name: DepositStrategyName; description: string; alloc: Alloc }> = [
+  { name: "Balanced Yield", description: "40% Cash / 35% Cloud / 25% Digital", alloc: { Cash: 40, Cloud: 35, Digital: 25, Task: 0 } },
+  { name: "Conservative Haven", description: "75% Cash / 15% Cloud / 10% Digital", alloc: { Cash: 75, Cloud: 15, Digital: 10, Task: 0 } },
+  { name: "Aggressive Tech", description: "10% Cash / 65% Cloud / 25% Digital", alloc: { Cash: 10, Cloud: 65, Digital: 25, Task: 0 } },
+  { name: "Liquid Cash Only", description: "100% Cash / 0% Vaults", alloc: { Cash: 100, Cloud: 0, Digital: 0, Task: 0 } },
+  { name: "US Treasury Cash", description: "100% US Treasury Cash", alloc: { Cash: 100, Cloud: 0, Digital: 0, Task: 0 } },
+  { name: "AI Cloud Compute", description: "100% AI Cloud Compute", alloc: { Cash: 0, Cloud: 100, Digital: 0, Task: 0 } },
+  { name: "Blue-Chip Index", description: "100% Blue-Chip Index", alloc: { Cash: 0, Cloud: 0, Digital: 100, Task: 0 } },
+];
+
 export type Flow =
-  | { kind: "deposit"; vault?: string; initialAmount?: number }
+  | { kind: "deposit"; vault?: string; initialAmount?: number; initialAlloc?: Alloc; initialStrategy?: DepositStrategyName }
   | { kind: "withdraw" }
   | { kind: "rebalance" }
   | { kind: "calculator" }
@@ -34,7 +46,7 @@ const Shell = ({ open, onClose, eyebrow, title, desc, children }: { open: boolea
 const Preview = () => <p className="flex items-center gap-2 text-[10px] text-muted-foreground"><LockKeyhole className="size-3" />Preview only — no real funds move</p>;
 
 /* ---------------- Deposit / Withdraw ---------------- */
-export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdraw, onNotice }: { flow: Flow; cash: number; terms: Terms; onClose: () => void; onDeposit: (n: number, net: string) => void; onWithdraw: (n: number, net: string) => void; onNotice: Notice }) {
+export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdraw, onNotice }: { flow: Flow; cash: number; terms: Terms; onClose: () => void; onDeposit: (n: number, net: string, alloc: Alloc, strategyName: DepositStrategyName) => void; onWithdraw: (n: number, net: string) => void; onNotice: Notice }) {
   const isDeposit = flow?.kind === "deposit";
   const open = flow?.kind === "deposit" || flow?.kind === "withdraw";
   const [net, setNet] = useState("Base");
@@ -44,7 +56,15 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
   const [busy, setBusy] = useState(false);
   const [instant, setInstant] = useState(false);
   const initialAmount = flow?.kind === "deposit" ? flow.initialAmount : undefined;
-  useEffect(() => { if (open) { setAmount(isDeposit ? String(initialAmount ?? 1000) : "250"); setDest(""); setBusy(false); setQr(false); setInstant(false); } }, [open, isDeposit, initialAmount]);
+  const vault = flow?.kind === "deposit" ? flow.vault : undefined;
+  const initialAlloc = flow?.kind === "deposit" ? flow.initialAlloc : undefined;
+  const initialStrategy = flow?.kind === "deposit" ? flow.initialStrategy : undefined;
+  const vaultStrategy = DEPOSIT_STRATEGIES.find((item) => item.name === vault);
+  const defaultStrategy = initialStrategy ?? vaultStrategy?.name ?? "Balanced Yield";
+  const [strategyName, setStrategyName] = useState<DepositStrategyName>("Balanced Yield");
+  useEffect(() => { if (open) { setAmount(isDeposit ? String(initialAmount ?? 1000) : "250"); setDest(""); setBusy(false); setQr(false); setInstant(false); setStrategyName(defaultStrategy); } }, [open, isDeposit, initialAmount, defaultStrategy]);
+  const selectedStrategy = DEPOSIT_STRATEGIES.find((item) => item.name === strategyName) ?? DEPOSIT_STRATEGIES[0]!;
+  const strategy = initialAlloc && initialStrategy === strategyName ? { ...selectedStrategy, alloc: initialAlloc } : selectedStrategy;
   const n = Number(amount) || 0;
   const fee = !isDeposit && instant ? Math.round(n * 1.5) / 100 : 0;
   const dvFee = isDeposit ? terms.fees.deposit : instant ? `${money(fee)} (1.5% express)` : "Free (standard)";
@@ -52,10 +72,9 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
   const submit = () => {
     if (error || busy) return;
     setBusy(true);
-    if (isDeposit) onDeposit(n, net);
+    if (isDeposit) onDeposit(n, net, strategy.alloc, strategy.name);
     else onWithdraw(n, `${net} · ${instant ? `Instant, fee ${money(fee)}` : "Standard T+1"}`);
   };
-  const vault = flow?.kind === "deposit" ? flow.vault : undefined;
   return (
     <Shell open={open} onClose={onClose} eyebrow={isDeposit ? "Deposit · USDC" : "Withdraw · instant USDC"} title={isDeposit ? (vault ? `Add funds to ${vault}` : "Deposit funds") : "Withdraw funds"} desc={isDeposit ? "Send USDC to your DepVest address or pick an amount to simulate." : `Available cash: ${money(cash)}. Withdrawals settle in minutes.`}>
       <div className="space-y-5">
@@ -69,6 +88,21 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
           <div className="mt-2 flex items-center rounded-md border border-input bg-background px-4"><span className="text-muted-foreground">$</span><input inputMode="decimal" maxLength={10} value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} className="h-12 w-full bg-transparent px-2 font-mono text-lg outline-none" /></div>
           <div className="mt-2 flex flex-wrap gap-2">{(isDeposit ? [250, 1000, 5000] : [100, 250, Math.floor(cash)]).map((p, i) => <button key={i} onClick={() => setAmount(String(p))} className="rounded-full bg-secondary px-3 py-1 font-mono text-[10px]">{!isDeposit && i === 2 ? "Max" : money(p)}</button>)}</div>
         </div>
+        {isDeposit && <div>
+          <div className="flex items-center justify-between gap-2"><Cap>Deployment Strategy</Cap><span className="text-[9px] text-muted-foreground">Applied when deposit settles</span></div>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {vaultStrategy && <button type="button" aria-pressed={strategyName === vaultStrategy.name} onClick={() => setStrategyName(vaultStrategy.name)} className={cn("rounded-md border p-3 text-left", strategyName === vaultStrategy.name ? "border-success/50 bg-success/10" : "border-border bg-background/40")}>
+              <b className="block text-xs">🏦 {vaultStrategy.name} <span className="text-success">(Vault-specific)</span></b>
+              <span className="mt-1 block text-[10px] text-muted-foreground">{vaultStrategy.description}</span>
+            </button>}
+            {DEPOSIT_STRATEGIES.slice(0, 4).map((item) => <button key={item.name} type="button" aria-pressed={strategyName === item.name} onClick={() => setStrategyName(item.name)} className={cn("rounded-md border p-3 text-left", strategyName === item.name ? "border-success/50 bg-success/10" : "border-border bg-background/40")}>
+              <b className="block text-xs">{item.name === "Balanced Yield" ? "⚖️ " : item.name === "Conservative Haven" ? "🛡️ " : item.name === "Aggressive Tech" ? "🚀 " : "💵 "}{item.name}{item.name === "Balanced Yield" && <span className="ml-1 text-success">(Default)</span>}</b>
+              <span className="mt-1 block text-[10px] text-muted-foreground">{item.description}</span>
+            </button>)}
+          </div>
+          {vaultStrategy && <p className="mt-2 text-[10px] text-muted-foreground">Opened from <b className="text-foreground">{vaultStrategy.name}</b>. Choose any strategy above to change the deployment.</p>}
+          <p className="mt-2 text-[10px] text-muted-foreground">This preview updates simulated allocation only; it does not move real funds.</p>
+        </div>}
         {!isDeposit && <div><Cap>Destination wallet</Cap><input value={dest} maxLength={42} onChange={(e) => setDest(e.target.value.trim())} placeholder="0x…" className="mt-2 h-11 w-full rounded-md border border-input bg-background px-3 font-mono text-xs outline-none" /><button onClick={() => setDest(DEPOSIT_ADDRESS)} className="mt-1 text-[10px] text-success">Use my connected wallet</button></div>}
         {!isDeposit && <div role="radiogroup" aria-label="Settlement speed"><Cap>Settlement</Cap><div className="mt-2 space-y-2">{[{ k: false, t: "Standard Settlement", d: "Settles next day (T+1) or at next vault epoch", f: "FREE" }, { k: true, t: "Instant Express Settlement", d: "Immediate on-chain processing via emergency liquidity pools", f: "1.5%" }].map((o) => <button key={o.t} role="radio" aria-checked={instant === o.k} onClick={() => setInstant(o.k)} className={cn("flex w-full items-center gap-3 rounded-md border p-3 text-left", instant === o.k ? "border-success/50 bg-success/10" : "border-border bg-background/40")}><span className={cn("size-3.5 shrink-0 rounded-full border", instant === o.k ? "border-success bg-success" : "border-muted-foreground")} /><span className="min-w-0 flex-1"><b className="block text-sm">{o.t}</b><span className="text-[10px] text-muted-foreground">{o.d}</span></span><span className="font-mono text-xs">{o.f}</span></button>)}</div></div>}
         <div className="space-y-1 rounded-md bg-secondary/50 p-3 font-mono text-[11px]">
@@ -85,7 +119,6 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
 }
 
 /* ---------------- Rebalance ---------------- */
-export type Alloc = Record<"Cash" | "Cloud" | "Digital" | "Task", number>;
 const PRESETS: Array<{ name: string; icon: string; a: Alloc }> = [
   { name: "Conservative Haven", icon: "🛡️", a: { Cash: 75, Cloud: 15, Digital: 10, Task: 0 } },
   { name: "Balanced Yield", icon: "⚖️", a: { Cash: 40, Cloud: 35, Digital: 25, Task: 0 } },
@@ -138,8 +171,8 @@ export function RebalanceDialog({ open, alloc, initial, total: balance = 0, reba
 /* ---------------- Calculator ---------------- */
 export function CalculatorDialog({ open, onClose, onInvest }: { open: boolean; onClose: () => void; onInvest: (n: number, alloc: Alloc) => void }) {
   const strategies = [
-    { name: "Conservative Haven", netApy: 4.65, allocation: { Cash: 70, Cloud: 10, Digital: 20, Task: 0 } },
-    { name: "Balanced Yield", netApy: 7.82, allocation: { Cash: 35, Cloud: 40, Digital: 25, Task: 0 } },
+    { name: "Conservative Haven", netApy: 4.65, allocation: { Cash: 75, Cloud: 15, Digital: 10, Task: 0 } },
+    { name: "Balanced Yield", netApy: 7.82, allocation: { Cash: 40, Cloud: 35, Digital: 25, Task: 0 } },
     { name: "Aggressive Tech", netApy: 10.05, allocation: { Cash: 10, Cloud: 65, Digital: 25, Task: 0 } },
   ] satisfies Array<{ name: string; netApy: number; allocation: Alloc }>;
   const [amt, setAmt] = useState(5000);
