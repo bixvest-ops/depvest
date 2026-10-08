@@ -46,7 +46,7 @@ const Shell = ({ open, onClose, eyebrow, title, desc, children }: { open: boolea
 const Preview = () => <p className="flex items-center gap-2 text-[10px] text-muted-foreground"><LockKeyhole className="size-3" />Preview only — no real funds move</p>;
 
 /* ---------------- Deposit / Withdraw ---------------- */
-export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdraw, onNotice }: { flow: Flow; cash: number; terms: Terms; onClose: () => void; onDeposit: (n: number, net: string, alloc: Alloc, strategyName: DepositStrategyName) => void; onWithdraw: (n: number, net: string) => void; onNotice: Notice }) {
+export function TransferDialog({ flow, cash, terms, walletAddress, onWalletRequired, onClose, onDeposit, onWithdraw, onNotice }: { flow: Flow; cash: number; terms: Terms; walletAddress: string | null; onWalletRequired: () => void; onClose: () => void; onDeposit: (n: number, net: string, alloc: Alloc, strategyName: DepositStrategyName) => void; onWithdraw: (n: number, net: string) => void; onNotice: Notice }) {
   const isDeposit = flow?.kind === "deposit";
   const open = flow?.kind === "deposit" || flow?.kind === "withdraw";
   const [net, setNet] = useState("Base");
@@ -71,6 +71,7 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
   const error = n <= 0 ? "Enter an amount" : n > 1_000_000 ? "Maximum is $1,000,000" : !isDeposit && n > cash ? `Only ${money(cash)} available` : !isDeposit && !/^0x[a-fA-F0-9]{40}$/.test(dest.trim()) ? "Enter a valid 0x wallet address (42 characters)" : "";
   const submit = () => {
     if (error || busy) return;
+    if (!walletAddress) { onWalletRequired(); return; }
     setBusy(true);
     if (isDeposit) onDeposit(n, net, strategy.alloc, strategy.name);
     else onWithdraw(n, `${net} · ${instant ? `Instant, fee ${money(fee)}` : "Standard T+1"}`);
@@ -78,6 +79,7 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
   return (
     <Shell open={open} onClose={onClose} eyebrow={isDeposit ? "Deposit · USDC" : "Withdraw · instant USDC"} title={isDeposit ? (vault ? `Add funds to ${vault}` : "Deposit funds") : "Withdraw funds"} desc={isDeposit ? "Send USDC to your DepVest address or pick an amount to simulate." : `Available cash: ${money(cash)}. Withdrawals settle in minutes.`}>
       <div className="space-y-5">
+        {open && <div className="rounded-md border border-success/25 bg-success/5 p-3 text-[11px]"><Cap>Authorizing wallet</Cap><p className="mt-1 font-mono text-success">{walletAddress ?? "Connect wallet to continue"}</p></div>}
         <div><Cap>Network</Cap><div className="mt-2 grid grid-cols-2 gap-2">{["Base", "Ethereum"].map((x) => <button key={x} onClick={() => setNet(x)} className={cn("rounded-md border p-3 text-left text-sm", net === x ? "border-success/50 bg-success/10" : "border-border bg-background/40")}><b className="block">{x}</b><span className="text-[10px] text-muted-foreground">Gas paid in your wallet</span></button>)}</div></div>
         {isDeposit && <div className="rounded-md border border-border bg-background/40 p-3">
           <div className="flex items-center justify-between"><Cap>Your USDC address ({net})</Cap><button onClick={() => setQr(!qr)} className="flex items-center gap-1 text-[10px] text-success"><QrCode className="size-3" />{qr ? "Hide" : "Show"} QR</button></div>
@@ -124,7 +126,7 @@ const PRESETS: Array<{ name: string; icon: string; a: Alloc }> = [
   { name: "Balanced Yield", icon: "⚖️", a: { Cash: 40, Cloud: 35, Digital: 25, Task: 0 } },
   { name: "Aggressive Tech", icon: "🚀", a: { Cash: 10, Cloud: 65, Digital: 25, Task: 0 } },
 ];
-export function RebalanceDialog({ open, alloc, initial, targetVault, total: balance = 0, rebalanceFee, onClose, onSave }: { open: boolean; alloc: Alloc; initial?: Alloc | null; targetVault?: string | null; total?: number; rebalanceFee?: string | null; onClose: () => void; onSave: (a: Alloc) => void }) {
+export function RebalanceDialog({ open, alloc, initial, targetVault, total: balance = 0, rebalanceFee, walletAddress, onWalletRequired, onClose, onSave }: { open: boolean; alloc: Alloc; initial?: Alloc | null; targetVault?: string | null; total?: number; rebalanceFee?: string | null; walletAddress: string | null; onWalletRequired: () => void; onClose: () => void; onSave: (a: Alloc) => void }) {
   const [draft, setDraft] = useState(alloc);
   const [review, setReview] = useState(false);
   useEffect(() => { if (open) { setDraft(initial ?? alloc); setReview(false); } }, [open, alloc, initial]);
@@ -145,7 +147,7 @@ export function RebalanceDialog({ open, alloc, initial, targetVault, total: bala
         </div>
         <Warning />
         <p className="text-[10px] text-muted-foreground">Rebalance fee: {rebalanceFee ?? "Unconfigured"}</p>
-        <div className="flex justify-between gap-2"><Button variant="ghost" onClick={() => setReview(false)}>Back</Button><Button onClick={() => onSave(draft)}><Check />Confirm & rebalance</Button></div>
+        <div className="flex justify-between gap-2"><Button variant="ghost" onClick={() => setReview(false)}>Back</Button><Button onClick={() => walletAddress ? onSave(draft) : onWalletRequired()}><Check />Confirm & rebalance</Button></div>
       </div>
     </Shell>
   );
@@ -162,7 +164,7 @@ export function RebalanceDialog({ open, alloc, initial, targetVault, total: bala
           <span>Total</span><b className="font-mono">{total}%{total !== 100 && ` (${total > 100 ? "-" : "+"}${Math.abs(100 - total)}% needed)`}</b>
         </div>
         <Warning />
-        <div className="flex justify-between gap-2"><Button variant="ghost" onClick={() => setDraft(alloc)}>Reset</Button><div className="flex gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={total !== 100} onClick={() => setReview(true)}><RefreshCw />Review</Button></div></div>
+        <div className="flex justify-between gap-2"><Button variant="ghost" onClick={() => setDraft(alloc)}>Reset</Button><div className="flex gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={total !== 100} onClick={() => walletAddress ? setReview(true) : onWalletRequired()}><RefreshCw />Review</Button></div></div>
       </div>
     </Shell>
   );
@@ -220,7 +222,7 @@ export function CalculatorDialog({ open, onClose, onInvest }: { open: boolean; o
 }
 
 /* ---------------- Task ---------------- */
-export function TaskDialog({ flow, onClose, onComplete }: { flow: Flow; onClose: () => void; onComplete: (title: string, reward: number) => void }) {
+export function TaskDialog({ flow, walletAddress, onWalletRequired, onClose, onComplete }: { flow: Flow; walletAddress: string | null; onWalletRequired: () => void; onClose: () => void; onComplete: (title: string, reward: number) => void }) {
   const open = flow?.kind === "task";
   const items = ["Organic oat milk 1L", "Wireless earbuds case", "Ceramic coffee mug", "Running shoe, size 42"];
   const labels = ["Grocery", "Electronics", "Home", "Apparel"];
@@ -232,16 +234,18 @@ export function TaskDialog({ flow, onClose, onComplete }: { flow: Flow; onClose:
   return (
     <Shell open onClose={onClose} eyebrow="AI Task Work" title={flow.title} desc={`Zero capital risk · ${money(flow.reward)} on verification · paid in USDC`}>
       {!done ? <div className="space-y-4">
+        <div className="rounded-md border border-success/25 bg-success/5 p-3 text-left text-[11px]"><Cap>Receiving wallet</Cap><p className="mt-1 font-mono text-success">{walletAddress ?? "Connect wallet to continue"}</p></div>
         <div className="flex justify-between text-[11px] text-muted-foreground"><span>Item {step + 1} of {items.length}</span><span>{Math.round((step / items.length) * 100)}%</span></div>
         <div className="h-1 overflow-hidden rounded-full bg-secondary"><span className="block h-full bg-success transition-all" style={{ width: `${(step / items.length) * 100}%` }} /></div>
         <div className="rounded-md border border-border bg-background/40 p-6 text-center"><Sparkles className="mx-auto size-5 text-success" /><p className="mt-3 text-sm font-medium">“{items[step]}”</p><p className="mt-1 text-[11px] text-muted-foreground">Pick the correct category</p></div>
-        <div className="grid grid-cols-2 gap-2">{labels.map((l) => <button key={l} onClick={() => setPicked(l)} className={cn("rounded-md border p-3 text-sm", picked === l ? "border-success/50 bg-success/10" : "border-border")}>{l}</button>)}</div>
-        <Button className="w-full" disabled={!picked} onClick={() => { setStep(step + 1); setPicked(null); }}>{step === items.length - 1 ? "Submit for verification" : "Next"}</Button>
+        <div className="grid grid-cols-2 gap-2">{labels.map((l) => <button key={l} onClick={() => { if (!walletAddress) return onWalletRequired(); setPicked(l); }} className={cn("rounded-md border p-3 text-sm", picked === l ? "border-success/50 bg-success/10" : "border-border")}>{l}</button>)}</div>
+        <Button className="w-full" disabled={!picked} onClick={() => { if (!walletAddress) return onWalletRequired(); setStep(step + 1); setPicked(null); }}>{step === items.length - 1 ? "Submit for verification" : "Next"}</Button>
       </div> : <div className="space-y-4 text-center">
         <span className="mx-auto grid size-14 place-items-center rounded-full bg-success/15 text-success"><Check className="size-6" /></span>
         <p className="text-lg font-semibold">Task verified</p><p className="font-mono text-3xl text-success">+{money(flow.reward)}</p>
         <p className="text-xs text-muted-foreground">Payout sent to your Available Cash balance.</p>
-        <Button className="w-full" onClick={() => onComplete(flow.title, flow.reward)}><Zap />Collect payout</Button>
+        <div className="rounded-md border border-success/25 bg-success/5 p-3 text-left text-[11px]"><Cap>Receiving wallet</Cap><p className="mt-1 font-mono text-success">{walletAddress ?? "Connect wallet to continue"}</p></div>
+        <Button className="w-full" onClick={() => walletAddress ? onComplete(flow.title, flow.reward) : onWalletRequired()}><Zap />Collect payout</Button>
       </div>}
     </Shell>
   );

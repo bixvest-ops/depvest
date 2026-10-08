@@ -203,6 +203,7 @@ function DepVestApp() {
   const [terms, setTerms] = useState<Terms>(DEFAULT_TERMS);
   const [ledger, setLedger] = useState<typeof activity>([]);
   const [wallet, setWallet] = useState<string | null>(null);
+  const [pendingFlow, setPendingFlow] = useState<Flow>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -241,26 +242,35 @@ function DepVestApp() {
   const allocationTotal = Object.values(alloc).reduce((sum, value) => sum + value, 0);
   const idleCash = Math.max(0, availableCash * (allocationTotal === 0 ? 1 : alloc.Cash / 100));
   const cashIsUnallocated = allocationTotal === 0 || (alloc.Cash === 100 && alloc.Cloud === 0 && alloc.Digital === 0 && alloc.Task === 0);
+  const requireWallet = (nextFlow: Flow) => {
+    if (wallet) {
+      setFlow(nextFlow);
+      return;
+    }
+    setPendingFlow(nextFlow);
+    showNotice("Please connect a wallet to proceed with this activity.");
+    setConnectOpen(true);
+  };
   const setAction = (a: string) => {
-    if (a === "Deposit" || a === "Deposit funds") return setFlow({ kind: "deposit" });
-    if (a === "Withdraw funds") return setFlow({ kind: "withdraw" });
-    if (a === "Rebalance") return setFlow({ kind: "rebalance", ...(allocationTotal === 0 ? { initial: { Cash: 100, Cloud: 0, Digital: 0, Task: 0 } } : {}) });
+    if (a === "Deposit" || a === "Deposit funds") return requireWallet({ kind: "deposit" });
+    if (a === "Withdraw funds") return requireWallet({ kind: "withdraw" });
+    if (a === "Rebalance") return requireWallet({ kind: "rebalance", ...(allocationTotal === 0 ? { initial: { Cash: 100, Cloud: 0, Digital: 0, Task: 0 } } : {}) });
     if (a.startsWith("Allocate Cash: ")) {
       const targetVault = a.slice("Allocate Cash: ".length);
       const targetKey: keyof Alloc = /compute/i.test(targetVault) ? "Cloud" : "Digital";
       const current = allocationTotal === 0 ? { Cash: 100, Cloud: 0, Digital: 0, Task: 0 } : alloc;
       const initial = { ...current, Cash: 0, [targetKey]: current[targetKey] + current.Cash };
-      return setFlow({ kind: "rebalance", initial, targetVault });
+      return requireWallet({ kind: "rebalance", initial, targetVault });
     }
     if (a === "Calculator") { return setFlow({ kind: "calculator" }); }
     if (a === "Waitlist") return showNotice("Waitlist joined — DePIN vaults coming soon");
     if (a === "Quick Earn") { showNotice("Quick Earn queue opened"); return go("Active Earn"); }
     if (a === "Export ledger") { exportLedgerCsv(allRows()); return showNotice("Ledger exported as CSV"); }
-    if (a.startsWith("Task|")) { const [, title, reward] = a.split("|"); return setFlow({ kind: "task", title: title ?? "Task", reward: Number(reward) }); }
+    if (a.startsWith("Task|")) { const [, title, reward] = a.split("|"); return requireWallet({ kind: "task", title: title ?? "Task", reward: Number(reward) }); }
     if (a.startsWith("Invest in ")) return setFlow({ kind: "vault", name: a.slice(10) });
     if (a.startsWith("Start Earning")) return go("Active Earn");
     const name = a.split(": ")[1];
-    setFlow(name ? { kind: "deposit", vault: name } : { kind: "deposit" });
+    requireWallet(name ? { kind: "deposit", vault: name } : { kind: "deposit" });
   };
   const disconnect = () => { setWallet(null); setProfileOpen(false); showNotice("Wallet disconnected"); };
 
@@ -308,17 +318,17 @@ function DepVestApp() {
           <Check className="size-4 shrink-0 text-success" /> <span className="truncate">{notice}</span>
         </div>
       )}
-      <TransferDialog flow={flow} cash={availableCash} terms={terms} onClose={() => setFlow(null)} onNotice={showNotice}
-        onDeposit={(n, net, strategyAlloc, strategyName) => { setFlow(null); const id = addEntry(`USDC deposit · ${strategyName} auto-deployed`, `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus, { status: "pending", vaultId: strategyName }); showNotice(`Deposit of ${fmt(n)} with ${strategyName} is pending clearing`); settleEntry(id, () => { setCash((c) => c + n); setAlloc(strategyAlloc); }, `Deposit of ${fmt(n)} with ${strategyName} confirmed`); }}
-        onWithdraw={(n, net) => { setFlow(null); const id = addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} • ${stamp()}`, "digital", ArrowDownToLine, { status: "pending", vaultId: "Connected wallet", settlementTier: net.includes("Instant") ? "Express" : "Standard T+1" }); showNotice(`Withdrawal of ${fmt(n)} is pending clearing`); settleEntry(id, () => setCash((c) => c - n), `Withdrawal of ${fmt(n)} confirmed`); }} />
-      <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} initial={flow?.kind === "rebalance" ? flow.initial ?? null : null} targetVault={flow?.kind === "rebalance" ? flow.targetVault ?? null : null} total={cash} rebalanceFee={terms.fees.rebalance} onClose={() => setFlow(null)} onSave={(a) => { setAlloc(a); setFlow(null); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); showNotice("Target mix saved"); }} />
+      <TransferDialog flow={flow} cash={availableCash} terms={terms} walletAddress={wallet ? WALLET_ADDRESS : null} onWalletRequired={() => requireWallet(flow)} onClose={() => setFlow(null)} onNotice={showNotice}
+        onDeposit={(n, net, strategyAlloc, strategyName) => { if (!wallet) return requireWallet(flow); setFlow(null); const id = addEntry(`USDC deposit · ${strategyName} auto-deployed`, `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus, { status: "pending", vaultId: strategyName }); showNotice(`Deposit of ${fmt(n)} with ${strategyName} is pending clearing`); settleEntry(id, () => { setCash((c) => c + n); setAlloc(strategyAlloc); }, `Deposit of ${fmt(n)} with ${strategyName} confirmed`); }}
+        onWithdraw={(n, net) => { if (!wallet) return requireWallet(flow); setFlow(null); const id = addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} • ${stamp()}`, "digital", ArrowDownToLine, { status: "pending", vaultId: "Connected wallet", settlementTier: net.includes("Instant") ? "Express" : "Standard T+1" }); showNotice(`Withdrawal of ${fmt(n)} is pending clearing`); settleEntry(id, () => setCash((c) => c - n), `Withdrawal of ${fmt(n)} confirmed`); }} />
+      <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} initial={flow?.kind === "rebalance" ? flow.initial ?? null : null} targetVault={flow?.kind === "rebalance" ? flow.targetVault ?? null : null} total={cash} rebalanceFee={terms.fees.rebalance} walletAddress={wallet ? WALLET_ADDRESS : null} onWalletRequired={() => requireWallet(flow)} onClose={() => setFlow(null)} onSave={(a) => { if (!wallet) return requireWallet(flow); setAlloc(a); setFlow(null); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); showNotice("Target mix saved"); }} />
       <CalculatorDialog open={flow?.kind === "calculator"} onClose={() => setFlow(null)} onInvest={(amount, target) => {
         const strategyName: DepositStrategyName = target.Cloud >= 60 ? "Aggressive Tech" : target.Cash >= 60 ? "Conservative Haven" : "Balanced Yield";
-        setFlow({ kind: "deposit", initialAmount: amount, initialAlloc: target, initialStrategy: strategyName });
+        requireWallet({ kind: "deposit", initialAmount: amount, initialAlloc: target, initialStrategy: strategyName });
       }} />
-      <TaskDialog flow={flow} onClose={() => setFlow(null)} onComplete={(title, reward) => { setFlow(null); const id = addEntry("AI task payout", `+${fmt(reward)}`, `${title} • ${stamp()}`, "task", Zap, { status: "pending", vaultId: "AI Task Work", settlementTier: "Instant verification" }); showNotice(`Task payout of ${fmt(reward)} pending verification`); settleEntry(id, () => { setCash((c) => c + reward); setEarned((e) => e + reward); setTasksDone((t) => t + 1); }, `Task payout of ${fmt(reward)} confirmed`); }} />
-      <VaultDetailDialog vault={flow?.kind === "vault" ? (vaults.map((v) => withTerms(v, terms, alloc)).find((v) => v.name === flow.name) ?? null) : null} onClose={() => setFlow(null)} onNotice={showNotice} onDeposit={(name) => setFlow({ kind: "deposit", vault: name })} />
-      <ConnectWalletDialog open={connectOpen} onOpenChange={setConnectOpen} onConnected={(w) => { setWallet(w); setConnectOpen(false); showNotice(`${w} connected`); }} />
+      <TaskDialog flow={flow} walletAddress={wallet ? WALLET_ADDRESS : null} onWalletRequired={() => requireWallet(flow)} onClose={() => setFlow(null)} onComplete={(title, reward) => { if (!wallet) return requireWallet(flow); setFlow(null); const id = addEntry("AI task payout", `+${fmt(reward)}`, `${title} • ${stamp()}`, "task", Zap, { status: "pending", vaultId: "AI Task Work", settlementTier: "Instant verification" }); showNotice(`Task payout of ${fmt(reward)} pending verification`); settleEntry(id, () => { setCash((c) => c + reward); setEarned((e) => e + reward); setTasksDone((t) => t + 1); }, `Task payout of ${fmt(reward)} confirmed`); }} />
+      <VaultDetailDialog vault={flow?.kind === "vault" ? (vaults.map((v) => withTerms(v, terms, alloc)).find((v) => v.name === flow.name) ?? null) : null} onClose={() => setFlow(null)} onNotice={showNotice} onDeposit={(name) => requireWallet({ kind: "deposit", vault: name })} />
+      <ConnectWalletDialog open={connectOpen} onOpenChange={(open) => { setConnectOpen(open); if (!open) setPendingFlow(null); }} onConnected={(w) => { setWallet(w); setConnectOpen(false); const requestedFlow = pendingFlow; setPendingFlow(null); if (requestedFlow) setFlow(requestedFlow); showNotice(`${WALLET_ADDRESS} connected on Base network`); }} />
       <ProfileSheet
         open={profileOpen}
         onOpenChange={setProfileOpen}
