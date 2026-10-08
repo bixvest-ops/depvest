@@ -565,17 +565,57 @@ function WalletLedger({ rows, cash, earned, onAction, onReceipt, wallet, onConne
 }
 
 const LEDGER_TYPES = ["All", "Deposits", "Withdrawals", "Tasks", "Rebalances"] as const;
-const LEDGER_RANGES = ["All Time", "Today", "Last 7 Days", "Last 30 Days"] as const;
+const LEDGER_RANGES = ["All Time", "Today", "Last 7 Days", "Last 30 Days", "Custom"] as const;
+const LEDGER_STATUSES = ["All Status", "Pending", "Completed"] as const;
 const typeOf = (t: string) => /deposit/i.test(t) ? "Deposits" : /withdraw/i.test(t) ? "Withdrawals" : /task|payout/i.test(t) ? "Tasks" : /rebalanc/i.test(t) ? "Rebalances" : "Other";
+const localDayStart = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number);
+  return year && month && day ? new Date(year, month - 1, day).getTime() : null;
+};
+const localDayEnd = (value: string) => {
+  const start = localDayStart(value);
+  return start == null ? null : start + 24 * 60 * 60 * 1000 - 1;
+};
 function LedgerFilters({ rows, onReceipt }: { rows: typeof activity; onReceipt: (r: Receipt) => void }) {
   const [type, setType] = useState<(typeof LEDGER_TYPES)[number]>("All");
   const [range, setRange] = useState<(typeof LEDGER_RANGES)[number]>("All Time");
+  const [status, setStatus] = useState<(typeof LEDGER_STATUSES)[number]>("All Status");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [q, setQ] = useState("");
   const now = Date.now();
-  const rangeMs: Record<(typeof LEDGER_RANGES)[number], number | null> = { "All Time": null, Today: 24 * 60 * 60 * 1000, "Last 7 Days": 7 * 24 * 60 * 60 * 1000, "Last 30 Days": 30 * 24 * 60 * 60 * 1000 };
-  const cutoff = rangeMs[range] == null ? null : now - rangeMs[range]!;
-  const list = rows.filter((r) => (cutoff == null || r.timestamp >= cutoff) && (type === "All" || typeOf(r.title) === type) && (r.title + " " + r.meta + " " + r.value).toLowerCase().includes(q.trim().toLowerCase()));
-  return <><div className="space-y-3 border-b border-border p-4"><div className="flex flex-wrap gap-1.5">{LEDGER_RANGES.map((item) => <button key={item} onClick={() => setRange(item)} aria-pressed={range === item} className={cn("rounded-full px-3 py-1 text-[10px]", range === item ? "bg-success/15 text-success" : "bg-secondary text-muted-foreground")}>{item}</button>)}</div><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div className="flex flex-wrap gap-1.5">{LEDGER_TYPES.map((t) => <button key={t} onClick={() => setType(t)} aria-pressed={type === t} className={cn("rounded-full px-3 py-1 text-[10px]", type === t ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>{t}</button>)}</div><input value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} placeholder="Search description, network, amount…" className="h-9 w-full rounded-full border border-input bg-background px-4 text-xs outline-none sm:ml-auto sm:w-64" /><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => exportLedgerCsv(list)}>Export statement</Button></div></div>{rows.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions yet. Make a deposit to get started.</p>}{rows.length > 0 && list.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions in {range.toLowerCase()} match these filters.</p>}{list.map((item) => <button key={item.id} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{new Date(item.timestamp).toLocaleString()} · {item.meta}</p><span className={cn("mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px]", item.status === "pending" ? "bg-warning/15 text-warning" : item.status === "failed" ? "bg-destructive/15 text-destructive" : "bg-success/10 text-success")}>{item.status === "pending" ? <i className="size-1.5 animate-pulse rounded-full bg-warning" /> : item.status === "failed" ? "●" : "✓"} {item.status === "pending" ? "Pending Clearing" : item.status === "failed" ? "Failed" : "Completed"}</span></div><span className={cn("font-mono text-xs", item.value.startsWith("-") ? "text-muted-foreground" : "text-success")}>{item.value}</span></button>)}</>;
+  const rangeMs: Record<Exclude<(typeof LEDGER_RANGES)[number], "Custom">, number | null> = { "All Time": null, Today: 24 * 60 * 60 * 1000, "Last 7 Days": 7 * 24 * 60 * 60 * 1000, "Last 30 Days": 30 * 24 * 60 * 60 * 1000 };
+  const cutoff = range === "Custom" || rangeMs[range] == null ? null : now - rangeMs[range]!;
+  const customStart = range === "Custom" && from ? localDayStart(from) : null;
+  const customEnd = range === "Custom" && to ? localDayEnd(to) : null;
+  const list = rows.filter((r) =>
+    (cutoff == null || r.timestamp >= cutoff) &&
+    (customStart == null || r.timestamp >= customStart) &&
+    (customEnd == null || r.timestamp <= customEnd) &&
+    (type === "All" || typeOf(r.title) === type) &&
+    (status === "All Status" || r.status === status.toLowerCase()) &&
+    (r.title + " " + r.meta + " " + r.value).toLowerCase().includes(q.trim().toLowerCase()),
+  );
+  const hasActiveFilters = range !== "All Time" || type !== "All" || status !== "All Status" || !!from || !!to || !!q.trim();
+  const resetFilters = () => { setRange("All Time"); setFrom(""); setTo(""); setType("All"); setStatus("All Status"); setQ(""); };
+  return <><div className="space-y-3 border-b border-border p-4">
+    <div className="flex flex-wrap gap-1.5">{LEDGER_RANGES.map((item) => <button key={item} onClick={() => setRange(item)} aria-pressed={range === item} className={cn("rounded-full px-3 py-1 text-[10px]", range === item ? "bg-success/15 text-success" : "bg-secondary text-muted-foreground")}>{item}</button>)}</div>
+    {range === "Custom" && <div className="flex flex-wrap items-end gap-3">
+      <label className="grid gap-1 text-[10px] text-muted-foreground">From<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-md border border-border bg-background px-3 text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring" /></label>
+      <label className="grid gap-1 text-[10px] text-muted-foreground">To<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-md border border-border bg-background px-3 text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring" /></label>
+    </div>}
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap gap-1.5">{LEDGER_TYPES.map((t) => <button key={t} onClick={() => setType(t)} aria-pressed={type === t} className={cn("rounded-full px-3 py-1 text-[10px]", type === t ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>{t}</button>)}</div>
+        <div role="group" aria-label="Transaction status" className="flex flex-wrap gap-1.5">{LEDGER_STATUSES.map((item) => <button key={item} onClick={() => setStatus(item)} aria-pressed={status === item} className={cn("rounded-full px-3 py-1 text-[10px]", status === item ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>{item}</button>)}</div>
+      </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center"><input value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} placeholder="Search description, network, amount…" className="h-9 w-full rounded-full border border-input bg-background px-4 text-xs outline-none sm:ml-auto sm:w-64" /><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => exportLedgerCsv(list)}>Export statement</Button></div>
+    </div>
+    {hasActiveFilters && <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground"><span>Showing {list.length} of {rows.length} transactions</span><button type="button" onClick={resetFilters} className="font-medium text-success hover:underline">Reset filters</button></div>}
+  </div>
+  {rows.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions yet. Make a deposit to get started.</p>}
+  {rows.length > 0 && list.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions match the selected date range and filters.</p>}
+  {list.map((item) => <button key={item.id} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{new Date(item.timestamp).toLocaleString()} · {item.meta}</p><span className={cn("mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px]", item.status === "pending" ? "bg-warning/15 text-warning" : item.status === "failed" ? "bg-destructive/15 text-destructive" : "bg-success/10 text-success")}>{item.status === "pending" ? <i className="size-1.5 animate-pulse rounded-full bg-warning" /> : item.status === "failed" ? "●" : "✓"} {item.status === "pending" ? "Pending Clearing" : item.status === "failed" ? "Failed" : "Completed"}</span></div><span className={cn("font-mono text-xs", item.value.startsWith("-") ? "text-muted-foreground" : "text-success")}>{item.value}</span></button>)}</>;
 }
 
 function AllocationBar({ alloc }: { alloc: Alloc }) { return <div className="flex h-2 gap-1 overflow-hidden rounded-full bg-secondary p-0.5"><span className="bar-cash rounded-full" style={{ width: `${alloc.Cash}%` }}/><span className="bar-cloud rounded-full" style={{ width: `${alloc.Cloud}%` }}/><span className="bar-digital rounded-full" style={{ width: `${alloc.Digital}%` }}/><span className="bar-task rounded-full" style={{ width: `${alloc.Task}%` }}/></div>; }
