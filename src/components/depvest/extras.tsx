@@ -239,7 +239,16 @@ function Pref({ label, checked, onChange }: { label: string; checked: boolean; o
 
 /* ---------------- Receipt ---------------- */
 
-export type Receipt = { title: string; value: string; meta: string } | null;
+export type Receipt = {
+  title: string;
+  value: string;
+  meta: string;
+  status?: "pending" | "completed" | "failed";
+  timestamp?: number;
+  reference?: string;
+  vaultId?: string;
+  settlementTier?: string;
+} | null;
 
 export function ReceiptDialog({ receipt, onClose, onNotice }: { receipt: Receipt; onClose: () => void; onNotice: (m: string) => void }) {
   return (
@@ -253,11 +262,13 @@ export function ReceiptDialog({ receipt, onClose, onNotice }: { receipt: Receipt
           <div className="space-y-4">
             <p className="font-mono text-3xl text-success">{receipt.value}</p>
             <dl className="space-y-2 rounded-md border border-border bg-background/40 p-4 text-xs">
-              <Row k="Status" v={<span className="text-success">● Confirmed</span>} />
+              <Row k="Status" v={receipt.status === "pending" ? <span className="text-warning">● Pending Clearing</span> : receipt.status === "failed" ? <span className="text-destructive">● Failed</span> : <span className="text-success">✓ Completed</span>} />
+              {receipt.timestamp != null && <Row k="Timestamp" v={new Date(receipt.timestamp).toLocaleString()} />}
               <Row k="Details" v={<span className="max-w-[60%] text-[11px]">{receipt.meta}</span>} />
               <Row k="Network" v="Base" />
-              <Row k="Confirmations" v="128" />
-              <Row k="Tx hash" v={<span className="font-mono">0x9f3c…e21a</span>} />
+              <Row k="Vault" v={receipt.vaultId ?? "DepVest vault"} />
+              <Row k="Settlement tier" v={receipt.settlementTier ?? "Standard T+1"} />
+              <Row k="Tx reference" v={<span className="font-mono">{receipt.reference ?? "0x9f3c…e21a"}</span>} />
             </dl>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={() => onNotice("Receipt copied")}><Copy />Copy</Button>
@@ -345,4 +356,3 @@ function Stat({ icon, label, value }: { icon: ReactNode; label: string; value: s
 }
 
 /* ---------------- How it works ---------------- */
-

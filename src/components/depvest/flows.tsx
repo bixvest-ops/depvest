@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowDownToLine, ArrowUpRight, Check, Copy, LockKeyhole, QrCode, RefreshCw, ShieldCheck, Sparkles, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import type { Terms } from "./terms";
 export const DEPOSIT_ADDRESS = "0x8a24c9F31b07dE52a1C6f04B7e9D3a1f6b2c4e91";
 
 export type Flow =
-  | { kind: "deposit"; vault?: string }
+  | { kind: "deposit"; vault?: string; initialAmount?: number }
   | { kind: "withdraw" }
   | { kind: "rebalance" }
   | { kind: "calculator" }
@@ -43,12 +43,18 @@ export function TransferDialog({ flow, cash, terms, onClose, onDeposit, onWithdr
   const [qr, setQr] = useState(false);
   const [busy, setBusy] = useState(false);
   const [instant, setInstant] = useState(false);
-  useEffect(() => { if (open) { setAmount(isDeposit ? "1000" : "250"); setDest(""); setBusy(false); setQr(false); setInstant(false); } }, [open, isDeposit]);
+  const initialAmount = flow?.kind === "deposit" ? flow.initialAmount : undefined;
+  useEffect(() => { if (open) { setAmount(isDeposit ? String(initialAmount ?? 1000) : "250"); setDest(""); setBusy(false); setQr(false); setInstant(false); } }, [open, isDeposit, initialAmount]);
   const n = Number(amount) || 0;
   const fee = !isDeposit && instant ? Math.round(n * 1.5) / 100 : 0;
   const dvFee = isDeposit ? terms.fees.deposit : instant ? `${money(fee)} (1.5% express)` : "Free (standard)";
   const error = n <= 0 ? "Enter an amount" : n > 1_000_000 ? "Maximum is $1,000,000" : !isDeposit && n > cash ? `Only ${money(cash)} available` : !isDeposit && !/^0x[a-fA-F0-9]{40}$/.test(dest.trim()) ? "Enter a valid 0x wallet address (42 characters)" : "";
-  const submit = () => { if (error) return; setBusy(true); window.setTimeout(() => { isDeposit ? onDeposit(n, net) : onWithdraw(n, `${net} · ${instant ? `Instant, fee ${money(fee)}` : "Standard T+1"}`); }, 900); };
+  const submit = () => {
+    if (error || busy) return;
+    setBusy(true);
+    if (isDeposit) onDeposit(n, net);
+    else onWithdraw(n, `${net} · ${instant ? `Instant, fee ${money(fee)}` : "Standard T+1"}`);
+  };
   const vault = flow?.kind === "deposit" ? flow.vault : undefined;
   return (
     <Shell open={open} onClose={onClose} eyebrow={isDeposit ? "Deposit · USDC" : "Withdraw · instant USDC"} title={isDeposit ? (vault ? `Add funds to ${vault}` : "Deposit funds") : "Withdraw funds"} desc={isDeposit ? "Send USDC to your DepVest address or pick an amount to simulate." : `Available cash: ${money(cash)}. Withdrawals settle in minutes.`}>
@@ -130,33 +136,51 @@ export function RebalanceDialog({ open, alloc, initial, total: balance = 0, reba
 }
 
 /* ---------------- Calculator ---------------- */
-export function CalculatorDialog({ open, alloc, terms, onClose, onInvest }: { open: boolean; alloc: Alloc; terms: Terms; onClose: () => void; onInvest: (n: number) => void }) {
-  const [amt, setAmt] = useState(1000);
-  useEffect(() => { if (open) setAmt(1000); }, [open]);
-  const RATES = [{ k: "Cash", r: terms.apy.Cash }, { k: "Cloud", r: terms.apy.Cloud }, { k: "Digital", r: terms.apy.Digital }, { k: "Task", r: 0 }] as const;
-  const allocated = Object.values(alloc).reduce((a, b) => a + b, 0) === 100;
-  const missing = RATES.some((x) => x.r == null && alloc[x.k] > 0);
-  const blended = useMemo(() => RATES.reduce((s, x) => s + (alloc[x.k] / 100) * (x.r ?? 0), 0), [alloc, terms]);
-  if (open && (!allocated || missing)) return (
-    <Shell open onClose={onClose} eyebrow="Simulator" title="Yield calculator" desc="Projections need verified rates and a target mix.">
-      <div className="space-y-3 text-xs text-muted-foreground">
-        {!allocated && <p className="rounded-md border border-dashed border-border p-3">Set a target mix with Rebalance first.</p>}
-        {missing && <p className="rounded-md border border-dashed border-border p-3">Vault rates are unconfigured until verified product terms are published.</p>}
-        <div className="flex justify-end"><Button variant="outline" onClick={onClose}>Close</Button></div>
-      </div>
-    </Shell>
-  );
-  const at = (years: number) => amt * Math.pow(1 + blended / 100 / 365, 365 * years);
+export function CalculatorDialog({ open, onClose, onInvest }: { open: boolean; onClose: () => void; onInvest: (n: number, alloc: Alloc) => void }) {
+  const strategies = [
+    { name: "Conservative Haven", netApy: 4.65, allocation: { Cash: 70, Cloud: 10, Digital: 20, Task: 0 } },
+    { name: "Balanced Yield", netApy: 7.82, allocation: { Cash: 35, Cloud: 40, Digital: 25, Task: 0 } },
+    { name: "Aggressive Tech", netApy: 10.05, allocation: { Cash: 10, Cloud: 65, Digital: 25, Task: 0 } },
+  ] satisfies Array<{ name: string; netApy: number; allocation: Alloc }>;
+  const [amt, setAmt] = useState(5000);
+  const [strategyIndex, setStrategyIndex] = useState(1);
+  const [years, setYears] = useState(1);
+  useEffect(() => { if (open) { setAmt(5000); setStrategyIndex(1); setYears(1); } }, [open]);
+  const strategy = strategies[strategyIndex]!;
+  const grossApy = strategy.netApy / 0.9;
+  const grossAmount = amt * Math.pow(1 + grossApy / 100 / 12, 12 * years);
+  const grossYield = grossAmount - amt;
+  const fee = grossYield * 0.1;
+  const netYield = grossYield - fee;
+  const monthlyNetYield = amt * (Math.pow(1 + grossApy / 100 / 12, 1) - 1) * 0.9;
+  const bankYield = amt * Math.pow(1 + 0.45 / 100 / 12, 12 * years) - amt;
   return (
-    <Shell open={open} onClose={onClose} eyebrow="Simulator" title="Yield calculator" desc={`Based on your current mix at ${blended.toFixed(2)}% blended APY.`}>
+    <Shell open={open} onClose={onClose} eyebrow="Simulator" title="Compounding & yield calculator" desc="Compare projected net returns and see the performance fee before deploying.">
       <div className="space-y-5">
-        <div><div className="flex items-baseline justify-between"><Cap>Starting amount</Cap><b className="font-mono text-2xl">{money(amt)}</b></div><Slider className="mt-3" aria-label="Amount" value={[amt]} min={500} max={50000} step={500} onValueChange={([v]) => setAmt(v ?? 500)} />
-          <div className="mt-2 flex gap-2">{[1000, 5000, 10000, 25000].map((p) => <button key={p} onClick={() => setAmt(p)} className={cn("rounded-full px-3 py-1 font-mono text-[10px]", amt === p ? "bg-foreground text-background" : "bg-secondary")}>{money(p).replace(".00", "")}</button>)}</div></div>
-        <div className="grid grid-cols-3 gap-2">{[["Daily", amt * blended / 100 / 365], ["Monthly", at(1 / 12) - amt], ["Yearly", at(1) - amt]].map(([l, v]) => <div key={l as string} className="rounded-md border border-border bg-secondary/50 p-3"><Cap>{l}</Cap><p className="mt-2 font-mono text-sm text-success">+{money(v as number)}</p></div>)}</div>
-        <div className="rounded-md border border-success/25 bg-success/10 p-4 text-sm"><p>{money(amt)} → <b className="font-mono">{money(at(1))}</b> in 12 months</p><p className="mt-1 text-xs text-muted-foreground">3 years with auto-compound: <b className="font-mono text-foreground">{money(at(3))}</b></p></div>
-        <div className="space-y-1">{RATES.map((x) => <div key={x.k} className="flex justify-between text-[11px]"><span className="text-muted-foreground">{x.k} · {alloc[x.k]}% @ {x.r ?? 0}%</span><span className="font-mono">{money(amt * alloc[x.k] / 100)}</span></div>)}</div>
-        <p className="text-[10px] text-muted-foreground">Estimates only. Rates change and are not guaranteed.</p>
-        <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => onInvest(amt)}>Invest {money(amt).replace(".00", "")}<ArrowUpRight /></Button></div>
+        <div>
+          <div className="flex items-baseline justify-between"><Cap>Starting amount</Cap><b className="font-mono text-2xl">{money(amt)}</b></div>
+          <Slider className="mt-3" aria-label="Principal" value={[amt]} min={250} max={100000} step={250} onValueChange={([v]) => setAmt(v ?? 250)} />
+          <div className="mt-2 flex flex-wrap gap-2">{[1000, 5000, 10000, 25000].map((p) => <button key={p} aria-pressed={amt === p} onClick={() => setAmt(p)} className={cn("rounded-full px-3 py-1 font-mono text-[10px]", amt === p ? "bg-foreground text-background" : "bg-secondary")}>{money(p).replace(".00", "")}</button>)}</div>
+        </div>
+        <div>
+          <Cap>Strategy</Cap>
+          <div className="mt-2 grid gap-2">{strategies.map((item, index) => <button key={item.name} aria-pressed={strategyIndex === index} onClick={() => setStrategyIndex(index)} className={cn("flex items-center justify-between rounded-md border p-3 text-left", strategyIndex === index ? "border-success/50 bg-success/10" : "border-border bg-background/40")}><span><b className="block text-xs">{item.name}</b><span className="text-[10px] text-muted-foreground">{item.allocation.Cash}% Cash · {item.allocation.Cloud}% Compute · {item.allocation.Digital}% Digital</span></span><span className="font-mono text-xs text-success">{item.netApy.toFixed(2)}% {index === 0 ? "net APY" : "blended net APY"}</span></button>)}</div>
+        </div>
+        <div><Cap>Time horizon</Cap><div className="mt-2 flex gap-2">{[{ label: "6 Months", value: 0.5 }, { label: "1 Year", value: 1 }, { label: "3 Years", value: 3 }].map((item) => <button key={item.value} aria-pressed={years === item.value} onClick={() => setYears(item.value)} className={cn("flex-1 rounded-full px-3 py-2 text-[10px]", years === item.value ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>{item.label}</button>)}</div></div>
+        <div className="space-y-2 rounded-md border border-border bg-secondary/40 p-3 text-xs">
+          <p className="font-medium">{strategy.name} · {strategy.netApy.toFixed(2)}% net APY · {years} {years === 1 ? "year" : "years"}</p>
+          <div className="flex justify-between"><span className="text-muted-foreground">Gross yield generated</span><b className="font-mono">{money(grossYield)}</b></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">10% DepVest performance fee</span><b className="font-mono">−{money(fee)}</b></div>
+          <div className="flex justify-between border-t border-border pt-2"><span>Net investor yield</span><b className="font-mono text-success">{money(netYield)}</b></div>
+          <p className="text-[10px] text-muted-foreground">Estimated first-month net yield: <b className="font-mono text-success">+{money(monthlyNetYield)}</b></p>
+          <p className="text-[10px] text-muted-foreground">Projected ending balance: {money(amt + netYield)}</p>
+        </div>
+        <div className="rounded-md border border-border p-3">
+          <div className="mb-2 flex justify-between text-[10px]"><Cap>Net return comparison</Cap><span className="text-muted-foreground">Bank savings · 0.45% APY</span></div>
+          {[{ label: strategy.name, value: netYield, style: "bg-success" }, { label: "Bank savings", value: bankYield, style: "bg-muted-foreground" }].map((item) => <div key={item.label} className="mt-2"><div className="mb-1 flex justify-between text-[10px]"><span>{item.label}</span><b className="font-mono">{money(item.value)}</b></div><div className="h-1.5 rounded-full bg-secondary"><div className={cn("h-full rounded-full", item.style)} style={{ width: `${Math.max(3, (item.value / Math.max(netYield, bankYield, 1)) * 100)}%` }} /></div></div>)}
+        </div>
+        <p className="text-[10px] text-muted-foreground">Estimates only. Actual rates may change; returns are not guaranteed. Projections compound monthly and apply the performance fee to positive yield.</p>
+        <div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={onClose}>Close</Button><Button className="flex-1" onClick={() => onInvest(amt, strategy.allocation)}>Deploy This Strategy<ArrowUpRight /></Button></div>
       </div>
     </Shell>
   );
@@ -207,9 +231,18 @@ export function VaultDetailDialog({ vault, onClose, onDeposit, onNotice }: { vau
 }
 
 /* ---------------- CSV ---------------- */
-export function exportLedgerCsv(rows: Array<{ title: string; value: string; meta: string }>) {
+export function exportLedgerCsv(rows: Array<{ title: string; value: string; meta: string; timestamp?: number; status?: string; reference?: string; vaultId?: string; settlementTier?: string }>) {
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
-  const csv = ["Description,Amount,Details", ...rows.map((r) => [r.title, r.value, r.meta].map(esc).join(","))].join("\n");
+  const csv = ["Timestamp,Description,Amount,Status,Vault,Settlement,Reference,Details", ...rows.map((r) => [
+    r.timestamp == null ? "" : new Date(r.timestamp).toISOString(),
+    r.title,
+    r.value,
+    r.status ?? "",
+    r.vaultId ?? "",
+    r.settlementTier ?? "",
+    r.reference ?? "",
+    r.meta,
+  ].map(esc).join(","))].join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
   const a = document.createElement("a");
   a.href = url; a.download = "depvest-transactions.csv"; a.click();

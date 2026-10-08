@@ -29,7 +29,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import {
   ConnectWalletDialog,
@@ -70,6 +70,20 @@ export const Route = createFileRoute("/")({
 
 type View = "Portfolio" | "Invest" | "Active Earn" | "Wallet & Ledger" | "Invite Friends" | "How It Works" | "Q&A" | "About" | "Rules" | "Support";
 type Accent = "cash" | "cloud" | "digital" | "task";
+type ActivityStatus = "pending" | "completed" | "failed";
+type ActivityRow = {
+  id: string;
+  title: string;
+  value: string;
+  meta: string;
+  accent: Accent;
+  icon: typeof Zap;
+  status: ActivityStatus;
+  timestamp: number;
+  reference: string;
+  vaultId: string;
+  settlementTier: string;
+};
 
 const navItems: Array<{ label: View; icon: typeof BarChart3; short: string }> = [
   { label: "Portfolio", short: "Portfolio", icon: BarChart3 },
@@ -169,7 +183,7 @@ const vaults: Array<{
   },
 ];
 
-const activity: Array<{ title: string; value: string; meta: string; accent: Accent; icon: typeof Zap }> = [];
+const activity: ActivityRow[] = [];
 
 function DepVestApp() {
   const [view, setView] = useState<View>("Portfolio");
@@ -181,6 +195,7 @@ function DepVestApp() {
   const [alloc, setAlloc] = useState<Alloc>({ Cash: 0, Cloud: 0, Digital: 0, Task: 0 })
   const [terms, setTerms] = useState<Terms>(DEFAULT_TERMS);
   const [ledger, setLedger] = useState<typeof activity>([]);
+  const [deployment, setDeployment] = useState<{ amount: number; alloc: Alloc; strategyName: string } | null>(null);
   const [wallet, setWallet] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -199,8 +214,24 @@ function DepVestApp() {
   };
   const fmt = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const stamp = () => new Date().toUTCString().slice(5, 22) + " UTC";
-  const addEntry = (title: string, value: string, meta: string, accent: Accent, icon: typeof Zap) => setLedger((l) => [{ title, value, meta, accent, icon }, ...l]);
+  const addEntry = (title: string, value: string, meta: string, accent: Accent, icon: typeof Zap, options?: { status?: ActivityStatus; vaultId?: string; settlementTier?: string }) => {
+    const timestamp = Date.now();
+    const id = `tx-${timestamp}-${Math.random().toString(16).slice(2, 8)}`;
+    setLedger((l) => [{ id, title, value, meta, accent, icon, status: options?.status ?? "completed", timestamp, reference: `0x${Math.random().toString(16).slice(2, 10)}…${Math.random().toString(16).slice(2, 6)}`, vaultId: options?.vaultId ?? "DepVest portfolio", settlementTier: options?.settlementTier ?? "Standard T+1" }, ...l]);
+    return id;
+  };
+  const settleEntry = (id: string, onSettled: () => void, message: string) => {
+    window.setTimeout(() => {
+      setLedger((rows) => rows.map((row) => row.id === id ? { ...row, status: "completed" } : row));
+      onSettled();
+      showNotice(message);
+    }, 3500);
+  };
   const allRows = () => [...ledger, ...activity];
+  const pendingWithdrawals = ledger
+    .filter((row) => row.status === "pending" && /withdrawal/i.test(row.title))
+    .reduce((total, row) => total + Math.abs(Number(row.value.replace(/[^\d.]/g, ""))), 0);
+  const availableCash = Math.max(0, cash - pendingWithdrawals);
   const setAction = (a: string) => {
     if (a === "Deposit" || a === "Deposit funds") return setFlow({ kind: "deposit" });
     if (a === "Withdraw funds") return setFlow({ kind: "withdraw" });
@@ -233,7 +264,7 @@ function DepVestApp() {
         {view === "Portfolio" && <Portfolio terms={terms} onAction={setAction} onNotice={showNotice} onView={go} alloc={alloc} total={cash} rows={allRows()} />}
         {view === "Invest" && <Invest onAction={setAction} terms={terms} />}
         {view === "Active Earn" && <ActiveEarn terms={terms} onAction={setAction} earned={earned} done={tasksDone} />}
-        {view === "Wallet & Ledger" && <WalletLedger rows={allRows()} cash={cash} earned={earned} onAction={setAction} onReceipt={setReceipt} wallet={wallet} onConnect={() => setConnectOpen(true)} />}
+        {view === "Wallet & Ledger" && <WalletLedger rows={allRows()} cash={availableCash} earned={earned} onAction={setAction} onReceipt={setReceipt} wallet={wallet} onConnect={() => setConnectOpen(true)} />}
         {view === "Invite Friends" && <InviteFriends onNotice={showNotice} />}
         {view === "How It Works" && <HowItWorks terms={terms} onStart={() => go("Invest")} />}
         {view === "Q&A" && <FAQ terms={terms} onSupport={() => go("Support")} />}
@@ -261,12 +292,12 @@ function DepVestApp() {
           <Check className="size-4 shrink-0 text-success" /> <span className="truncate">{notice}</span>
         </div>
       )}
-      <TransferDialog flow={flow} cash={cash} terms={terms} onClose={() => setFlow(null)} onNotice={showNotice}
-        onDeposit={(n, net) => { setFlow(null); setCash((c) => c + n); addEntry("USDC deposit", `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus); showNotice(`Deposited ${fmt(n)} USDC on ${net}`); }}
-        onWithdraw={(n, net) => { setFlow(null); setCash((c) => c - n); addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} • ${stamp()}`, "digital", ArrowDownToLine); showNotice(`Withdrawal of ${fmt(n)} submitted (${net})`); }} />
-      <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} rebalanceFee={terms.fees.rebalance} onClose={() => setFlow(null)} onSave={(a) => { setAlloc(a); setFlow(null); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); showNotice("Target mix saved"); }} />
-      <CalculatorDialog open={flow?.kind === "calculator"} alloc={alloc} terms={terms} onClose={() => setFlow(null)} onInvest={() => setFlow({ kind: "deposit" })} />
-      <TaskDialog flow={flow} onClose={() => setFlow(null)} onComplete={(title, reward) => { setFlow(null); setCash((c) => c + reward); setEarned((e) => e + reward); setTasksDone((t) => t + 1); addEntry("AI micro-task verified", `+${fmt(reward)}`, `${title} • ${stamp()}`, "task", Zap); showNotice(`Task payout: +${fmt(reward)} USDC`); }} />
+      <TransferDialog flow={flow} cash={availableCash} terms={terms} onClose={() => setFlow(null)} onNotice={showNotice}
+        onDeposit={(n, net) => { const target = flow?.kind === "deposit" ? flow.vault ?? "US Treasury Cash" : "US Treasury Cash"; setFlow(null); const id = addEntry("USDC deposit", `+${fmt(n)}`, `${net} network • ${stamp()}`, "cash", Plus, { status: "pending", vaultId: target }); showNotice(`Deposit of ${fmt(n)} to ${target} is pending clearing`); settleEntry(id, () => setCash((c) => c + n), `Deposit of ${fmt(n)} to ${target} confirmed`); }}
+        onWithdraw={(n, net) => { setFlow(null); const id = addEntry("USDC withdrawal", `-${fmt(n)}`, `${net} • ${stamp()}`, "digital", ArrowDownToLine, { status: "pending", vaultId: "Connected wallet", settlementTier: net.includes("Instant") ? "Express" : "Standard T+1" }); showNotice(`Withdrawal of ${fmt(n)} is pending clearing`); settleEntry(id, () => setCash((c) => c - n), `Withdrawal of ${fmt(n)} confirmed`); }} />
+      <RebalanceDialog open={flow?.kind === "rebalance"} alloc={alloc} initial={deployment?.alloc ?? null} total={cash} rebalanceFee={terms.fees.rebalance} onClose={() => { setDeployment(null); setFlow(null); }} onSave={(a) => { const nextDeployment = deployment; setAlloc(a); addEntry("Portfolio rebalanced", "$0.00", `Target mix updated • ${stamp()}`, "cloud", RefreshCw); setDeployment(null); setFlow(nextDeployment ? { kind: "deposit", initialAmount: nextDeployment.amount, vault: nextDeployment.strategyName } : null); if (!nextDeployment) showNotice("Target mix saved"); }} />
+      <CalculatorDialog open={flow?.kind === "calculator"} onClose={() => setFlow(null)} onInvest={(amount, target) => { const strategyName = target.Cloud >= 60 ? "Aggressive Tech" : target.Cash >= 60 ? "Conservative Haven" : "Balanced Yield"; setDeployment({ amount, alloc: target, strategyName }); setFlow({ kind: "rebalance" }); }} />
+      <TaskDialog flow={flow} onClose={() => setFlow(null)} onComplete={(title, reward) => { setFlow(null); const id = addEntry("AI task payout", `+${fmt(reward)}`, `${title} • ${stamp()}`, "task", Zap, { status: "pending", vaultId: "AI Task Work", settlementTier: "Instant verification" }); showNotice(`Task payout of ${fmt(reward)} pending verification`); settleEntry(id, () => { setCash((c) => c + reward); setEarned((e) => e + reward); setTasksDone((t) => t + 1); }, `Task payout of ${fmt(reward)} confirmed`); }} />
       <VaultDetailDialog vault={flow?.kind === "vault" ? (vaults.map((v) => withTerms(v, terms, alloc)).find((v) => v.name === flow.name) ?? null) : null} onClose={() => setFlow(null)} onNotice={showNotice} onDeposit={(name) => setFlow({ kind: "deposit", vault: name })} />
       <ConnectWalletDialog open={connectOpen} onOpenChange={setConnectOpen} onConnected={(w) => { setWallet(w); setConnectOpen(false); showNotice(`${w} connected`); }} />
       <ProfileSheet
@@ -413,6 +444,19 @@ function PortfolioSummary({ onAction, alloc, total }: { onAction: (value: string
 
 function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[number]; onAction: (value: string) => void; onNotice: (value: string) => void }) {
   const [auto, setAuto] = useState(vault.auto);
+  const [startedAt] = useState(() => Date.now());
+  const [clock, setClock] = useState(startedAt);
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const elapsed = clock - startedAt;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const treasuryRemaining = (4 * 60 + 18 - Math.floor(elapsed / 60_000) % (24 * 60) + 24 * 60) % (24 * 60);
+  const cloudRemaining = (12 * dayMs - elapsed % (30 * dayMs) + 30 * dayMs) % (30 * dayMs);
+  const epochDays = Math.ceil(cloudRemaining / dayMs);
+  const epochNumber = 14 + Math.floor((18 * dayMs + elapsed) / (30 * dayMs));
+  const epochProgress = ((18 * dayMs + elapsed) % (30 * dayMs)) / (30 * dayMs) * 100;
   const Icon = vault.icon;
   return (
     <article className="group rounded-[14px] border border-border bg-card p-5 shadow-card transition-transform hover:-translate-y-px">
@@ -422,7 +466,9 @@ function VaultCard({ vault, onAction, onNotice }: { vault: (typeof vaults)[numbe
           <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{vault.name}</h3><Badge accent={vault.accent}>● {vault.rate} <span className="text-muted-foreground">{vault.rateLabel}</span></Badge></div>
           <div className="mt-2 flex flex-wrap items-center gap-2"><Badge accent={vault.accent}>{vault.risk}</Badge><span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[9px] text-muted-foreground">✓ {vault.badge}</span><span className="text-[10px] text-muted-foreground">{vault.detail}</span></div>
           <p className="mt-1 text-[10px] text-muted-foreground">{vault.note}</p>
+          <p className="mt-1 text-[10px] text-success">{vault.accent === "cash" ? `Daily Compounding · Next payout in ${String(Math.floor(treasuryRemaining / 60)).padStart(2, "0")}h ${String(treasuryRemaining % 60).padStart(2, "0")}m` : vault.accent === "cloud" ? `Epoch #${epochNumber} (30-Day Cycle) · Closes in ${epochDays} days` : vault.accent === "digital" ? "7-Day Unstaking Cooldown · Flexible Rewards" : "Instant Payout Upon Verification"}</p>
         </div>
+        {vault.accent === "cloud" && <div className="mt-3"><div className="mb-1 flex justify-between text-[9px] text-muted-foreground"><span>Epoch progress</span><span>{Math.round(epochProgress)}%</span></div><div className="h-1 overflow-hidden rounded-full bg-secondary"><span className="block h-full rounded-full bg-cloud" style={{ width: `${epochProgress}%` }} /></div></div>}
         <label className="flex shrink-0 items-center gap-2 text-[10px] text-muted-foreground"><span className="hidden sm:inline">Auto-comp</span><button aria-label={`Toggle auto-compound for ${vault.name}`} aria-pressed={auto} onClick={() => { setAuto(!auto); onNotice(`Auto-compound ${auto ? "paused" : "enabled"} for ${vault.name}`); }} className={cn("relative h-5 w-9 rounded-full transition-colors", auto ? "bg-success" : "bg-secondary")}><span className={cn("absolute top-0.5 size-4 rounded-full bg-foreground transition-all", auto ? "left-[18px]" : "left-0.5")} /></button></label>
       </div>
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -478,16 +524,21 @@ function WalletLedger({ rows, cash, earned, onAction, onReceipt, wallet, onConne
       <div className="min-w-0 flex-1">{wallet ? <><p className="text-sm font-semibold">{wallet} connected</p><p className="mt-1 font-mono text-[11px] text-muted-foreground">{WALLET_ADDRESS} · Base network</p></> : <><p className="text-sm font-semibold">No wallet connected</p><p className="mt-1 text-[11px] text-muted-foreground">Connect a wallet to deposit and receive payouts.</p></>}</div>
       <div className="grid grid-cols-2 gap-2 sm:flex">{wallet ? <><Button className="rounded-full" onClick={() => onAction("Deposit funds")}><Plus />Deposit</Button><Button variant="outline" className="rounded-full" onClick={() => onAction("Withdraw funds")}><ArrowDownToLine />Withdraw</Button></> : <Button className="col-span-2 rounded-full bg-success text-primary-foreground hover:bg-success/90" onClick={onConnect}><WalletCards />Connect Wallet</Button>}</div>
     </div>
-    <div className="grid gap-4 sm:grid-cols-3 sm:gap-5"><WalletStat label="Available cash" value={`$${cash.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<WalletCards />} /><WalletStat label="Pending yield" value="—" note="Accrues once funds are allocated to a vault with a verified rate" icon={<Activity />} /><WalletStat label="Total earned" value={`$${earned.toFixed(2)}`} icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="flex items-center justify-between gap-3 border-b border-border p-5"><div className="min-w-0"><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Tap an entry to view its receipt</p></div><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => onAction("Export ledger")}>Export</Button></div><LedgerFilters rows={rows} onReceipt={onReceipt} /></div></section>;
+    <div className="grid gap-4 sm:grid-cols-3 sm:gap-5"><WalletStat label="Available cash" value={`$${cash.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<WalletCards />} /><WalletStat label="Pending yield" value="—" note="Accrues once funds are allocated to a vault with a verified rate" icon={<Activity />} /><WalletStat label="Total earned" value={`$${earned.toFixed(2)}`} icon={<BarChart3 />} /></div><div className="mt-6 rounded-[14px] border border-border bg-card"><div className="border-b border-border p-5"><div className="min-w-0"><h2 className="text-sm font-semibold">Transaction ledger</h2><p className="mt-1 text-[10px] text-muted-foreground">Tap an entry to view its receipt</p></div></div><LedgerFilters rows={rows} onReceipt={onReceipt} /></div></section>;
 }
 
 const LEDGER_TYPES = ["All", "Deposits", "Withdrawals", "Tasks", "Rebalances"] as const;
+const LEDGER_RANGES = ["All Time", "Today", "Last 7 Days", "Last 30 Days"] as const;
 const typeOf = (t: string) => /deposit/i.test(t) ? "Deposits" : /withdraw/i.test(t) ? "Withdrawals" : /task|payout/i.test(t) ? "Tasks" : /rebalanc/i.test(t) ? "Rebalances" : "Other";
 function LedgerFilters({ rows, onReceipt }: { rows: typeof activity; onReceipt: (r: Receipt) => void }) {
   const [type, setType] = useState<(typeof LEDGER_TYPES)[number]>("All");
+  const [range, setRange] = useState<(typeof LEDGER_RANGES)[number]>("All Time");
   const [q, setQ] = useState("");
-  const list = rows.filter((r) => (type === "All" || typeOf(r.title) === type) && (r.title + " " + r.meta + " " + r.value).toLowerCase().includes(q.trim().toLowerCase()));
-  return <>{rows.length > 0 && <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center"><div className="flex flex-wrap gap-1.5">{LEDGER_TYPES.map((t) => <button key={t} onClick={() => setType(t)} className={cn("rounded-full px-3 py-1 text-[10px]", type === t ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>{t}</button>)}</div><input value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} placeholder="Search description, network, amount…" className="h-9 w-full rounded-full border border-input bg-background px-4 text-xs outline-none sm:ml-auto sm:w-64" /></div>}{rows.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions yet. Make a deposit to get started.</p>}{rows.length > 0 && list.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions match these filters.</p>}{list.map((item, i) => <button key={item.title + i} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{item.meta}</p></div><span className={cn("font-mono text-xs", item.value.startsWith("-") ? "text-muted-foreground" : "text-success")}>{item.value}</span></button>)}</>;
+  const now = Date.now();
+  const rangeMs: Record<(typeof LEDGER_RANGES)[number], number | null> = { "All Time": null, Today: 24 * 60 * 60 * 1000, "Last 7 Days": 7 * 24 * 60 * 60 * 1000, "Last 30 Days": 30 * 24 * 60 * 60 * 1000 };
+  const cutoff = rangeMs[range] == null ? null : now - rangeMs[range]!;
+  const list = rows.filter((r) => (cutoff == null || r.timestamp >= cutoff) && (type === "All" || typeOf(r.title) === type) && (r.title + " " + r.meta + " " + r.value).toLowerCase().includes(q.trim().toLowerCase()));
+  return <><div className="space-y-3 border-b border-border p-4"><div className="flex flex-wrap gap-1.5">{LEDGER_RANGES.map((item) => <button key={item} onClick={() => setRange(item)} aria-pressed={range === item} className={cn("rounded-full px-3 py-1 text-[10px]", range === item ? "bg-success/15 text-success" : "bg-secondary text-muted-foreground")}>{item}</button>)}</div><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div className="flex flex-wrap gap-1.5">{LEDGER_TYPES.map((t) => <button key={t} onClick={() => setType(t)} aria-pressed={type === t} className={cn("rounded-full px-3 py-1 text-[10px]", type === t ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>{t}</button>)}</div><input value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} placeholder="Search description, network, amount…" className="h-9 w-full rounded-full border border-input bg-background px-4 text-xs outline-none sm:ml-auto sm:w-64" /><Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => exportLedgerCsv(list)}>Export statement</Button></div></div>{rows.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions yet. Make a deposit to get started.</p>}{rows.length > 0 && list.length === 0 && <p className="p-8 text-center text-xs text-muted-foreground">No transactions in {range.toLowerCase()} match these filters.</p>}{list.map((item) => <button key={item.id} onClick={() => onReceipt(item)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-4 text-left last:border-0 hover:bg-secondary/30 sm:gap-4"><span className={cn("vault-icon size-8", `accent-${item.accent}`)}><item.icon className="size-4" /></span><div className="min-w-0"><p className="truncate text-xs font-medium">{item.title}</p><p className="mt-1 truncate text-[9px] text-muted-foreground">{new Date(item.timestamp).toLocaleString()} · {item.meta}</p><span className={cn("mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px]", item.status === "pending" ? "bg-warning/15 text-warning" : item.status === "failed" ? "bg-destructive/15 text-destructive" : "bg-success/10 text-success")}>{item.status === "pending" ? <i className="size-1.5 animate-pulse rounded-full bg-warning" /> : item.status === "failed" ? "●" : "✓"} {item.status === "pending" ? "Pending Clearing" : item.status === "failed" ? "Failed" : "Completed"}</span></div><span className={cn("font-mono text-xs", item.value.startsWith("-") ? "text-muted-foreground" : "text-success")}>{item.value}</span></button>)}</>;
 }
 
 function AllocationBar({ alloc }: { alloc: Alloc }) { return <div className="flex h-2 gap-1 overflow-hidden rounded-full bg-secondary p-0.5"><span className="bar-cash rounded-full" style={{ width: `${alloc.Cash}%` }}/><span className="bar-cloud rounded-full" style={{ width: `${alloc.Cloud}%` }}/><span className="bar-digital rounded-full" style={{ width: `${alloc.Digital}%` }}/><span className="bar-task rounded-full" style={{ width: `${alloc.Task}%` }}/></div>; }
