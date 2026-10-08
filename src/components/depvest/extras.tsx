@@ -268,7 +268,7 @@ export function ReceiptDialog({ receipt, onClose, onNotice }: { receipt: Receipt
               <Row k="Network" v="Base" />
               <Row k="Vault" v={receipt.vaultId ?? "DepVest vault"} />
               <Row k="Settlement tier" v={receipt.settlementTier ?? "Standard T+1"} />
-              <Row k="Tx reference" v={<span className="font-mono">{receipt.reference ?? "0x9f3c…e21a"}</span>} />
+              <Row k={receipt.title.startsWith("AI task payout ·") ? "SHA-256 receipt" : "Tx reference"} v={<span className="break-all font-mono text-[10px]">{receipt.reference ?? "0x9f3c…e21a"}</span>} />
             </dl>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={() => onNotice("Receipt copied")}><Copy />Copy</Button>

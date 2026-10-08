@@ -222,30 +222,126 @@ export function CalculatorDialog({ open, onClose, onInvest }: { open: boolean; o
 }
 
 /* ---------------- Task ---------------- */
-export function TaskDialog({ flow, walletAddress, onWalletRequired, onClose, onComplete }: { flow: Flow; walletAddress: string | null; onWalletRequired: () => void; onClose: () => void; onComplete: (title: string, reward: number) => void }) {
+export function TaskDialog({ flow, walletAddress, onWalletRequired, onClose, onComplete }: { flow: Flow; walletAddress: string | null; onWalletRequired: () => void; onClose: () => void; onComplete: (title: string, reward: number) => Promise<void> }) {
   const open = flow?.kind === "task";
-  const items = ["Organic oat milk 1L", "Wireless earbuds case", "Ceramic coffee mug", "Running shoe, size 42"];
-  const labels = ["Grocery", "Electronics", "Home", "Apparel"];
+  const taskTitle = flow?.kind === "task" ? flow.title : null;
+  const workflows = {
+    "Validate product labels": {
+      kind: "label",
+      batchId: "LBL-2026-0418",
+      steps: [
+        { prompt: "Organic oat milk 1L", correct: "Grocery" },
+        { prompt: "Wireless earbuds case", correct: "Electronics" },
+        { prompt: "Ceramic coffee mug", correct: "Home" },
+        { prompt: "Running shoe, size 42", correct: "Apparel" },
+      ],
+      choices: ["Grocery", "Electronics", "Home", "Apparel"],
+    },
+    "Review AI summary": {
+      kind: "review",
+      batchId: "SUM-2026-0093",
+      steps: [
+        { prompt: "The report says urban tree cover increased by 12% between 2020 and 2024.", sentence: "Urban tree cover increased by 12% between 2020 and 2024." },
+        { prompt: "It attributes the change to the city's new planting initiative.", sentence: "The change is attributed to the city's new planting initiative." },
+        { prompt: "The summary concludes that the program was an unqualified success.", sentence: "The program was an unqualified success." },
+      ],
+      choices: [],
+    },
+    "Classify satellite tiles": {
+      kind: "satellite",
+      batchId: "SAT-2026-0271",
+      steps: [
+        { prompt: "Dense rooftops and intersecting roads", detail: "Tile 01 · high-density grid" },
+        { prompt: "Long crop rows with irrigation channels", detail: "Tile 02 · cultivated plain" },
+        { prompt: "Continuous tree canopy with a narrow clearing", detail: "Tile 03 · mixed woodland" },
+        { prompt: "Open blue surface bordered by a coastline", detail: "Tile 04 · coastal basin" },
+      ],
+      choices: ["Urban", "Agricultural", "Forest", "Water"],
+    },
+  } as const;
+  const workflow = taskTitle ? workflows[taskTitle as keyof typeof workflows] : workflows["Validate product labels"];
   const [step, setStep] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
-  useEffect(() => { if (open) { setStep(0); setPicked(null); } }, [open]);
+  const [answers, setAnswers] = useState<Array<string | null>>([]);
+  const [factuality, setFactuality] = useState<string | null>(null);
+  const [tone, setTone] = useState<string | null>(null);
+  const [reviewResults, setReviewResults] = useState<Array<{ factuality: string; tone: string }>>([]);
+  const [collecting, setCollecting] = useState(false);
+  const [receiptError, setReceiptError] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setStep(0);
+      setPicked(null);
+      setAnswers([]);
+      setFactuality(null);
+      setTone(null);
+      setReviewResults([]);
+      setCollecting(false);
+      setReceiptError(false);
+    }
+  }, [open, taskTitle]);
   if (!open) return <Shell open={false} onClose={onClose} eyebrow="" title="" desc="">{null}</Shell>;
-  const done = step >= items.length;
+  const done = step >= workflow.steps.length;
+  const currentStep = workflow.steps[step];
+  const progress = done ? 100 : Math.round((step / workflow.steps.length) * 100);
+  const scoreAnswers = answers.slice();
+  if (picked) scoreAnswers[step] = picked;
+  const answeredCount = workflow.kind === "label" ? scoreAnswers.filter(Boolean).length : 0;
+  const accurateCount = workflow.kind === "label"
+    ? scoreAnswers.filter((answer, index) => answer === workflow.steps[index]?.correct).length
+    : 0;
+  const advance = () => {
+    if (!walletAddress) return onWalletRequired();
+    if (workflow.kind === "review") {
+      if (!factuality || !tone) return;
+      setReviewResults((current) => [...current.slice(0, step), { factuality, tone }]);
+    } else {
+      if (!picked) return;
+      setAnswers((current) => [...current.slice(0, step), picked]);
+    }
+    setStep((current) => current + 1);
+    setPicked(null);
+    setFactuality(null);
+    setTone(null);
+  };
   return (
     <Shell open onClose={onClose} eyebrow="AI Task Work" title={flow.title} desc={`Zero capital risk · ${money(flow.reward)} on verification · paid in USDC`}>
       {!done ? <div className="space-y-4">
         <div className="rounded-md border border-success/25 bg-success/5 p-3 text-left text-[11px]"><Cap>Receiving wallet</Cap><p className="mt-1 font-mono text-success">{walletAddress ?? "Connect wallet to continue"}</p></div>
-        <div className="flex justify-between text-[11px] text-muted-foreground"><span>Item {step + 1} of {items.length}</span><span>{Math.round((step / items.length) * 100)}%</span></div>
-        <div className="h-1 overflow-hidden rounded-full bg-secondary"><span className="block h-full bg-success transition-all" style={{ width: `${(step / items.length) * 100}%` }} /></div>
-        <div className="rounded-md border border-border bg-background/40 p-6 text-center"><Sparkles className="mx-auto size-5 text-success" /><p className="mt-3 text-sm font-medium">“{items[step]}”</p><p className="mt-1 text-[11px] text-muted-foreground">Pick the correct category</p></div>
-        <div className="grid grid-cols-2 gap-2">{labels.map((l) => <button key={l} onClick={() => { if (!walletAddress) return onWalletRequired(); setPicked(l); }} className={cn("rounded-md border p-3 text-sm", picked === l ? "border-success/50 bg-success/10" : "border-border")}>{l}</button>)}</div>
-        <Button className="w-full" disabled={!picked} onClick={() => { if (!walletAddress) return onWalletRequired(); setStep(step + 1); setPicked(null); }}>{step === items.length - 1 ? "Submit for verification" : "Next"}</Button>
+        <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-background/40 p-3 text-[10px]">
+          <div><Cap>Dataset batch</Cap><p className="mt-1 font-mono">{workflow.batchId}</p></div>
+          <div><Cap>Estimated verification SLA</Cap><p className="mt-1 text-success">Instant on-chain verification</p></div>
+        </div>
+        <div className="flex justify-between text-[11px] text-muted-foreground"><span>Step {step + 1} of {workflow.steps.length}</span><span>{progress}%</span></div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-secondary"><span className="block h-full bg-success transition-all" style={{ width: `${progress}%` }} /></div>
+        {workflow.kind === "label" && <div className="flex items-center justify-between rounded-md border border-success/25 bg-success/5 px-3 py-2 text-[11px]"><span>Live accuracy</span><b className="font-mono text-success">{answeredCount ? `${Math.round((accurateCount / answeredCount) * 100)}% · ${accurateCount}/${answeredCount} correct` : "— · Select a label to score"}</b></div>}
+        {workflow.kind === "review" && reviewResults.slice(0, step).map((result, index) => {
+          const isApproved = result.factuality === "Accurate" && result.tone === "Neutral";
+          return <div key={workflow.steps[index].sentence} className={cn("flex items-center justify-between rounded-md border px-3 py-2 text-[10px]", isApproved ? "border-success/25 bg-success/5" : "border-warning/25 bg-warning/5")}><span className="truncate pr-2">{workflow.steps[index].sentence}</span><span className={cn("shrink-0 rounded-full px-2 py-1", isApproved ? "bg-success/15 text-success" : "bg-warning/15 text-warning")}>{isApproved ? "✓ Approved" : "⚑ Flagged for review"}</span></div>;
+        })}
+        <div className="rounded-md border border-border bg-background/40 p-5 text-center"><Sparkles className="mx-auto size-5 text-success" /><p className="mt-3 text-sm font-medium">{workflow.kind === "review" ? `“${currentStep.sentence}”` : currentStep.prompt}</p>{workflow.kind === "label" && <p className="mt-1 text-[11px] text-muted-foreground">Tag this product with the best-fit e-commerce category.</p>}{workflow.kind === "review" && <p className="mt-1 text-[11px] text-muted-foreground">Check this sentence for factuality and tone.</p>}{workflow.kind === "satellite" && <p className="mt-1 text-[11px] text-muted-foreground">{currentStep.detail} · classify the dominant land use</p>}</div>
+        {workflow.kind === "review" ? <div className="space-y-3">
+          <div><Cap>Factuality</Cap><div className="mt-2 grid grid-cols-2 gap-2">{["Accurate", "Needs review"].map((choice) => <button key={choice} onClick={() => setFactuality(choice)} aria-pressed={factuality === choice} className={cn("rounded-md border p-3 text-xs", factuality === choice ? "border-success/50 bg-success/10" : "border-border")}>{choice}</button>)}</div></div>
+          <div><Cap>Tone</Cap><div className="mt-2 grid grid-cols-2 gap-2">{["Neutral", "Needs revision"].map((choice) => <button key={choice} onClick={() => setTone(choice)} aria-pressed={tone === choice} className={cn("rounded-md border p-3 text-xs", tone === choice ? "border-success/50 bg-success/10" : "border-border")}>{choice}</button>)}</div></div>
+        </div> : <div className="grid grid-cols-2 gap-2">{workflow.choices.map((choice) => <button key={choice} onClick={() => { if (!walletAddress) return onWalletRequired(); setPicked(choice); }} aria-pressed={picked === choice} className={cn("rounded-md border p-3 text-sm", picked === choice ? "border-success/50 bg-success/10" : "border-border")}>{choice}</button>)}</div>}
+        <Button className="w-full" disabled={workflow.kind === "review" ? !factuality || !tone : !picked} onClick={advance}>{step === workflow.steps.length - 1 ? "Submit for verification" : workflow.kind === "review" ? factuality === "Accurate" && tone === "Neutral" ? "Approve sentence" : "Flag sentence for review" : "Next"}</Button>
       </div> : <div className="space-y-4 text-center">
         <span className="mx-auto grid size-14 place-items-center rounded-full bg-success/15 text-success"><Check className="size-6" /></span>
-        <p className="text-lg font-semibold">Task verified</p><p className="font-mono text-3xl text-success">+{money(flow.reward)}</p>
-        <p className="text-xs text-muted-foreground">Payout sent to your Available Cash balance.</p>
-        <div className="rounded-md border border-success/25 bg-success/5 p-3 text-left text-[11px]"><Cap>Receiving wallet</Cap><p className="mt-1 font-mono text-success">{walletAddress ?? "Connect wallet to continue"}</p></div>
-        <Button className="w-full" onClick={() => walletAddress ? onComplete(flow.title, flow.reward) : onWalletRequired()}><Zap />Collect payout</Button>
+        <p className="text-lg font-semibold">Task Verified</p><p className="font-mono text-3xl text-success">+{money(flow.reward)} USDC</p>
+        <div className="rounded-md border border-success/25 bg-success/5 p-3 text-left text-[11px]"><p className="font-medium text-success">Gas-free Base network receipt</p><p className="mt-1 text-muted-foreground">Instant verification · no gas deducted</p><Cap>Receiving wallet</Cap><p className="mt-1 break-all font-mono text-success">{walletAddress ?? "Connect wallet to continue"}</p></div>
+        {receiptError && <p role="alert" className="text-xs text-destructive">Could not create a cryptographic receipt. Please try collecting again.</p>}
+        <Button className="w-full" disabled={collecting} onClick={async () => {
+          if (!walletAddress) return onWalletRequired();
+          setCollecting(true);
+          setReceiptError(false);
+          try {
+            await onComplete(flow.title, flow.reward);
+          } catch {
+            setReceiptError(true);
+          } finally {
+            setCollecting(false);
+          }
+        }}><Zap />{collecting ? "Creating receipt…" : "Collect payout"}</Button>
       </div>}
     </Shell>
   );

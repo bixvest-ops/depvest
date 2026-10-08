@@ -221,10 +221,10 @@ function DepVestApp() {
   };
   const fmt = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const stamp = () => new Date().toUTCString().slice(5, 22) + " UTC";
-  const addEntry = (title: string, value: string, meta: string, accent: Accent, icon: typeof Zap, options?: { status?: ActivityStatus; vaultId?: string; settlementTier?: string }) => {
+  const addEntry = (title: string, value: string, meta: string, accent: Accent, icon: typeof Zap, options?: { status?: ActivityStatus; vaultId?: string; settlementTier?: string; reference?: string }) => {
     const timestamp = Date.now();
     const id = `tx-${timestamp}-${Math.random().toString(16).slice(2, 8)}`;
-    setLedger((l) => [{ id, title, value, meta, accent, icon, status: options?.status ?? "completed", timestamp, reference: `0x${Math.random().toString(16).slice(2, 10)}…${Math.random().toString(16).slice(2, 6)}`, vaultId: options?.vaultId ?? "DepVest portfolio", settlementTier: options?.settlementTier ?? "Standard T+1" }, ...l]);
+    setLedger((l) => [{ id, title, value, meta, accent, icon, status: options?.status ?? "completed", timestamp, reference: options?.reference ?? `0x${Math.random().toString(16).slice(2, 10)}…${Math.random().toString(16).slice(2, 6)}`, vaultId: options?.vaultId ?? "DepVest portfolio", settlementTier: options?.settlementTier ?? "Standard T+1" }, ...l]);
     return id;
   };
   const settleEntry = (id: string, onSettled: () => void, message: string) => {
@@ -326,7 +326,20 @@ function DepVestApp() {
         const strategyName: DepositStrategyName = target.Cloud >= 60 ? "Aggressive Tech" : target.Cash >= 60 ? "Conservative Haven" : "Balanced Yield";
         requireWallet({ kind: "deposit", initialAmount: amount, initialAlloc: target, initialStrategy: strategyName });
       }} />
-      <TaskDialog flow={flow} walletAddress={wallet ? WALLET_ADDRESS : null} onWalletRequired={() => requireWallet(flow)} onClose={() => setFlow(null)} onComplete={(title, reward) => { if (!wallet) return requireWallet(flow); setFlow(null); const id = addEntry("AI task payout", `+${fmt(reward)}`, `${title} • ${stamp()}`, "task", Zap, { status: "pending", vaultId: "AI Task Work", settlementTier: "Instant verification" }); showNotice(`Task payout of ${fmt(reward)} pending verification`); settleEntry(id, () => { setCash((c) => c + reward); setEarned((e) => e + reward); setTasksDone((t) => t + 1); }, `Task payout of ${fmt(reward)} confirmed`); }} />
+      <TaskDialog flow={flow} walletAddress={wallet ? WALLET_ADDRESS : null} onWalletRequired={() => requireWallet(flow)} onClose={() => setFlow(null)} onComplete={async (title, reward) => {
+        if (!wallet) return requireWallet(flow);
+        const entropy = crypto.getRandomValues(new Uint8Array(32));
+        const receiptPayload = new TextEncoder().encode(`${title}|${reward}|${WALLET_ADDRESS}|${Date.now()}|${Array.from(entropy).join(",")}`);
+        const digest = await crypto.subtle.digest("SHA-256", receiptPayload);
+        const reference = `0x${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+        setFlow(null);
+        const id = addEntry(`AI task payout · ${title}`, `+${fmt(reward)}`, `${WALLET_ADDRESS} · ${stamp()}`, "task", Zap, { status: "pending", vaultId: "AI Task Work", settlementTier: "Instant verification · gas-free Base", reference });
+        setCash((current) => current + reward);
+        setEarned((current) => current + reward);
+        setTasksDone((current) => current + 1);
+        showNotice(`Task payout of ${fmt(reward)} credited; settlement pending`);
+        settleEntry(id, () => {}, `Task payout of ${fmt(reward)} confirmed`);
+      }} />
       <VaultDetailDialog vault={flow?.kind === "vault" ? (vaults.map((v) => withTerms(v, terms, alloc)).find((v) => v.name === flow.name) ?? null) : null} onClose={() => setFlow(null)} onNotice={showNotice} onDeposit={(name) => requireWallet({ kind: "deposit", vault: name })} />
       <ConnectWalletDialog open={connectOpen} onOpenChange={(open) => { setConnectOpen(open); if (!open) setPendingFlow(null); }} onConnected={(w) => { setWallet(w); setConnectOpen(false); const requestedFlow = pendingFlow; setPendingFlow(null); if (requestedFlow) setFlow(requestedFlow); showNotice(`${WALLET_ADDRESS} connected on Base network`); }} />
       <ProfileSheet
